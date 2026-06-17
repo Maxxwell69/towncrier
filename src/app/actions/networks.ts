@@ -32,6 +32,21 @@ const publishSchema = z.object({
   postId: z.string().min(1),
 });
 
+const postIdSchema = z.object({
+  postId: z.string().min(1),
+});
+
+const updateDraftSchema = z.object({
+  postId: z.string().min(1),
+  title: z.string().min(5),
+  slug: z.string().min(3),
+  excerpt: z.string().min(20),
+  bodyMarkdown: z.string().min(200),
+  categories: z.string().optional(),
+  imagePrompt: z.string().optional(),
+  imageUrl: z.string().url().optional().or(z.literal("")),
+});
+
 function listFromText(value?: string) {
   return (value ?? "")
     .split(/[,\n]/)
@@ -103,6 +118,24 @@ export async function generatePostAction(formData: FormData) {
   }
 
   const topic = parsed.topic?.trim() || network.blogConfig.defaultTopic;
+  const existingDraft = await prisma.blogPost.findFirst({
+    where: {
+      networkId: network.id,
+      topic: {
+        equals: topic,
+        mode: "insensitive",
+      },
+      status: {
+        in: ["draft", "failed"],
+      },
+    },
+  });
+
+  if (existingDraft) {
+    dashboardError(
+      "A draft already exists for that topic. Edit, publish, or delete it before generating another.",
+    );
+  }
 
   try {
     const draft = await generateBlogDraft({
@@ -132,6 +165,80 @@ export async function generatePostAction(formData: FormData) {
         : "Failed to generate blog draft. Check the Railway logs.",
     );
   }
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+export async function updateDraftAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = updateDraftSchema.parse({
+    postId: formData.get("postId"),
+    title: formData.get("title"),
+    slug: formData.get("slug"),
+    excerpt: formData.get("excerpt"),
+    bodyMarkdown: formData.get("bodyMarkdown"),
+    categories: formData.get("categories") || undefined,
+    imagePrompt: formData.get("imagePrompt") || undefined,
+    imageUrl: formData.get("imageUrl") || "",
+  });
+  const post = await prisma.blogPost.findFirst({
+    where: {
+      id: parsed.postId,
+      network: {
+        ownerId: user.id,
+      },
+    },
+  });
+
+  if (!post) {
+    dashboardError("Draft not found.");
+  }
+
+  if (post.status === "published") {
+    dashboardError("Published posts cannot be edited from the MVP dashboard.");
+  }
+
+  await prisma.blogPost.update({
+    where: { id: post.id },
+    data: {
+      title: parsed.title,
+      slug: parsed.slug,
+      excerpt: parsed.excerpt,
+      bodyMarkdown: parsed.bodyMarkdown,
+      categories: listFromText(parsed.categories),
+      imagePrompt: parsed.imagePrompt,
+      imageUrl: parsed.imageUrl || null,
+      status: "draft",
+      errorMessage: null,
+    },
+  });
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+export async function deletePostAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = postIdSchema.parse({
+    postId: formData.get("postId"),
+  });
+  const post = await prisma.blogPost.findFirst({
+    where: {
+      id: parsed.postId,
+      network: {
+        ownerId: user.id,
+      },
+    },
+  });
+
+  if (!post) {
+    dashboardError("Post not found.");
+  }
+
+  await prisma.blogPost.delete({
+    where: { id: post.id },
+  });
 
   revalidatePath("/dashboard");
   redirect("/dashboard");

@@ -1,8 +1,10 @@
 import { logoutAction } from "@/app/actions/auth";
 import {
   createNetworkAction,
+  deletePostAction,
   generatePostAction,
   publishPostAction,
+  updateDraftAction,
 } from "@/app/actions/networks";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -200,18 +202,120 @@ export default async function DashboardPage({
                           key={post.id}
                           className="rounded-2xl border border-slate-200 p-4"
                         >
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                                {post.status}
-                              </p>
-                              <h3 className="mt-2 text-xl font-semibold">
-                                {post.title}
-                              </h3>
-                              <p className="mt-2 text-sm text-slate-600">
-                                {post.excerpt}
-                              </p>
-                            </div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                            {post.status}
+                          </p>
+                          <h3 className="mt-2 text-xl font-semibold">
+                            {post.title}
+                          </h3>
+                          <p className="mt-2 text-sm text-slate-600">
+                            {post.excerpt}
+                          </p>
+
+                          {post.imageUrl ? (
+                            <div
+                              aria-label={post.title}
+                              className="mt-4 aspect-[16/9] w-full rounded-2xl bg-cover bg-center"
+                              role="img"
+                              style={{
+                                backgroundImage: `url(${post.imageUrl})`,
+                              }}
+                            />
+                          ) : null}
+
+                          {post.errorMessage ? (
+                            <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">
+                              {post.errorMessage}
+                            </p>
+                          ) : null}
+
+                          {post.imagePrompt ? (
+                            <p className="mt-3 text-sm text-slate-500">
+                              Image prompt: {post.imagePrompt}
+                            </p>
+                          ) : null}
+
+                          {post.status === "draft" ||
+                          post.status === "failed" ? (
+                            <details className="mt-4 rounded-2xl bg-slate-50 p-4">
+                              <summary className="cursor-pointer font-semibold">
+                                Edit draft
+                              </summary>
+                              <form
+                                action={updateDraftAction}
+                                className="mt-4 space-y-4"
+                              >
+                                <input
+                                  type="hidden"
+                                  name="postId"
+                                  value={post.id}
+                                />
+                                <TextInput
+                                  label="Title"
+                                  name="title"
+                                  required
+                                  defaultValue={post.title}
+                                />
+                                <TextInput
+                                  label="URL slug"
+                                  name="slug"
+                                  required
+                                  defaultValue={post.slug}
+                                />
+                                <label className="block">
+                                  <span className="text-sm font-medium text-slate-700">
+                                    Excerpt
+                                  </span>
+                                  <textarea
+                                    required
+                                    name="excerpt"
+                                    rows={3}
+                                    defaultValue={post.excerpt}
+                                    className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                                  />
+                                </label>
+                                <label className="block">
+                                  <span className="text-sm font-medium text-slate-700">
+                                    Body markdown
+                                  </span>
+                                  <textarea
+                                    required
+                                    name="bodyMarkdown"
+                                    rows={10}
+                                    defaultValue={post.bodyMarkdown}
+                                    className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                                  />
+                                </label>
+                                <TextInput
+                                  label="Categories"
+                                  name="categories"
+                                  defaultValue={post.categories.join(", ")}
+                                />
+                                <TextInput
+                                  label="Image URL"
+                                  name="imageUrl"
+                                  defaultValue={post.imageUrl ?? ""}
+                                  placeholder="https://example.com/image.jpg"
+                                />
+                                <label className="block">
+                                  <span className="text-sm font-medium text-slate-700">
+                                    Image prompt
+                                  </span>
+                                  <textarea
+                                    name="imagePrompt"
+                                    rows={3}
+                                    defaultValue={post.imagePrompt ?? ""}
+                                    className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                                  />
+                                </label>
+                                <button className="rounded-xl bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200">
+                                  Save draft
+                                </button>
+                              </form>
+                            </details>
+                          ) : null}
+
+                          <div className="mt-4 flex flex-wrap gap-3">
                             {post.status === "draft" ||
                             post.status === "failed" ? (
                               <form action={publishPostAction}>
@@ -225,19 +329,18 @@ export default async function DashboardPage({
                                 </button>
                               </form>
                             ) : null}
+
+                            <form action={deletePostAction}>
+                              <input
+                                type="hidden"
+                                name="postId"
+                                value={post.id}
+                              />
+                              <button className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50">
+                                Delete
+                              </button>
+                            </form>
                           </div>
-
-                          {post.errorMessage ? (
-                            <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">
-                              {post.errorMessage}
-                            </p>
-                          ) : null}
-
-                          {post.imagePrompt ? (
-                            <p className="mt-3 text-sm text-slate-500">
-                              Image prompt: {post.imagePrompt}
-                            </p>
-                          ) : null}
                         </div>
                       ))
                     )}
@@ -257,11 +360,13 @@ function TextInput({
   name,
   required,
   placeholder,
+  defaultValue,
 }: {
   label: string;
   name: string;
   required?: boolean;
   placeholder?: string;
+  defaultValue?: string;
 }) {
   return (
     <label className="block">
@@ -269,6 +374,7 @@ function TextInput({
       <input
         required={required}
         name={name}
+        defaultValue={defaultValue}
         className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
         placeholder={placeholder}
       />
