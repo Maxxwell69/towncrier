@@ -80,7 +80,12 @@ export default async function DashboardPage({
             <form action={createNetworkAction} className="mt-6 space-y-4">
               <TextInput label="Network name" name="name" required />
               <TextInput label="GHL API token" name="apiToken" required />
-              <TextInput label="GHL blog ID" name="blogId" required />
+              <TextInput
+                label="GHL blog ID"
+                name="blogId"
+                placeholder="24-character hex blog site ID"
+                required
+              />
               <TextInput label="GHL location ID" name="ghlLocationId" />
               <TextInput label="GHL company ID" name="ghlCompanyId" />
               <label className="block">

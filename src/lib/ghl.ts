@@ -5,6 +5,8 @@ type GhlCredentialPayload = {
   accessToken?: string;
 };
 
+const objectIdPattern = /^[a-f\d]{24}$/i;
+
 export type PublishBlogPostInput = {
   blogId: string;
   locationId?: string | null;
@@ -65,6 +67,10 @@ function buildBlogPostUrl() {
   return new URL(path, baseUrl).toString();
 }
 
+function isObjectId(value: string) {
+  return objectIdPattern.test(value);
+}
+
 export async function publishBlogPost(
   input: PublishBlogPostInput,
 ): Promise<PublishBlogPostResult> {
@@ -77,6 +83,13 @@ export async function publishBlogPost(
     throw new Error("No GHL API token found for this network.");
   }
 
+  if (!isObjectId(input.blogId)) {
+    throw new Error(
+      "GHL Blog ID must be the 24-character hex blog site ID from the GHL blog dashboard URL.",
+    );
+  }
+
+  const categoryIds = input.categories.filter(isObjectId);
   const response = await fetch(buildBlogPostUrl(), {
     method: "POST",
     headers: {
@@ -92,7 +105,7 @@ export async function publishBlogPost(
       urlSlug: input.slug,
       description: input.excerpt,
       rawHTML: markdownToSimpleHtml(input.bodyMarkdown),
-      categories: input.categories,
+      ...(categoryIds.length > 0 ? { categories: categoryIds } : {}),
       imageUrl: input.imageUrl,
       status: "PUBLISHED",
     }),
