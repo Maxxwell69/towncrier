@@ -5,6 +5,7 @@ import {
   generatePostAction,
   publishPostAction,
   updateDraftAction,
+  updateNetworkAction,
 } from "@/app/actions/networks";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -83,7 +84,7 @@ export default async function DashboardPage({
               <TextInput
                 label="GHL blog ID"
                 name="blogId"
-                placeholder="24-character hex blog site ID"
+                placeholder="Blog site ID from GHL"
                 required
               />
               <TextInput label="GHL location ID" name="ghlLocationId" />
@@ -174,6 +175,106 @@ export default async function DashboardPage({
                       {network.posts.length === 1 ? "" : "s"}
                     </div>
                   </div>
+
+                  <details className="mt-6 rounded-2xl bg-slate-50 p-4">
+                    <summary className="cursor-pointer font-semibold">
+                      Edit network settings
+                    </summary>
+                    <form
+                      action={updateNetworkAction}
+                      className="mt-4 grid gap-4 md:grid-cols-2"
+                    >
+                      <input
+                        type="hidden"
+                        name="networkId"
+                        value={network.id}
+                      />
+                      <TextInput
+                        label="Network name"
+                        name="name"
+                        defaultValue={network.name}
+                        required
+                      />
+                      <TextInput
+                        label="New GHL API token"
+                        name="apiToken"
+                        placeholder="Leave blank to keep current token"
+                      />
+                      <TextInput
+                        label="GHL blog ID"
+                        name="blogId"
+                        defaultValue={network.blogConfig?.blogId ?? ""}
+                        placeholder="Blog site ID from GHL"
+                        required
+                      />
+                      <TextInput
+                        label="GHL location ID"
+                        name="ghlLocationId"
+                        defaultValue={network.ghlLocationId ?? ""}
+                      />
+                      <TextInput
+                        label="GHL company ID"
+                        name="ghlCompanyId"
+                        defaultValue={network.ghlCompanyId ?? ""}
+                      />
+                      <TextInput
+                        label="Image style"
+                        name="imageStyle"
+                        defaultValue={network.blogConfig?.imageStyle ?? ""}
+                      />
+                      <label className="block md:col-span-2">
+                        <span className="text-sm font-medium text-slate-700">
+                          Default topic
+                        </span>
+                        <textarea
+                          required
+                          name="defaultTopic"
+                          rows={3}
+                          defaultValue={network.blogConfig?.defaultTopic ?? ""}
+                          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                        />
+                      </label>
+                      <label className="block md:col-span-2">
+                        <span className="text-sm font-medium text-slate-700">
+                          Categories
+                        </span>
+                        <textarea
+                          name="categories"
+                          rows={2}
+                          defaultValue={
+                            network.blogConfig?.categories.join(", ") ?? ""
+                          }
+                          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                        />
+                      </label>
+                      <fieldset className="md:col-span-2">
+                        <legend className="text-sm font-medium text-slate-700">
+                          Future posting days
+                        </legend>
+                        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+                          {postingDays.map((day) => (
+                            <label
+                              key={day}
+                              className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                            >
+                              <input
+                                type="checkbox"
+                                name="postingDays"
+                                value={day}
+                                defaultChecked={network.blogConfig?.postingDays.includes(
+                                  day,
+                                )}
+                              />
+                              {day}
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
+                      <button className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 md:col-span-2">
+                        Save network settings
+                      </button>
+                    </form>
+                  </details>
 
                   <div className="mt-6 rounded-2xl bg-slate-50 p-4">
                     <h3 className="font-semibold">Generate next blog</h3>

@@ -6,6 +6,7 @@ type GhlCredentialPayload = {
 };
 
 const objectIdPattern = /^[a-f\d]{24}$/i;
+const ghlIdPattern = /^[a-z\d]{10,40}$/i;
 
 export type PublishBlogPostInput = {
   blogId: string;
@@ -71,6 +72,10 @@ function isObjectId(value: string) {
   return objectIdPattern.test(value);
 }
 
+function isGhlId(value: string) {
+  return ghlIdPattern.test(value);
+}
+
 export async function publishBlogPost(
   input: PublishBlogPostInput,
 ): Promise<PublishBlogPostResult> {
@@ -83,9 +88,9 @@ export async function publishBlogPost(
     throw new Error("No GHL API token found for this network.");
   }
 
-  if (!isObjectId(input.blogId)) {
+  if (!isGhlId(input.blogId)) {
     throw new Error(
-      "GHL Blog ID must be the 24-character hex blog site ID from the GHL blog dashboard URL.",
+      "GHL Blog ID must be the blog site ID from the GHL blog dashboard URL.",
     );
   }
 

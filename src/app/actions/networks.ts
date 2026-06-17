@@ -23,6 +23,11 @@ const networkSchema = z.object({
   imageStyle: z.string().optional(),
 });
 
+const updateNetworkSchema = networkSchema.extend({
+  networkId: z.string().min(1),
+  apiToken: z.string().optional(),
+});
+
 const generateSchema = z.object({
   networkId: z.string().min(1),
   topic: z.string().optional(),
@@ -88,6 +93,72 @@ export async function createNetworkAction(formData: FormData) {
           categories: listFromText(parsed.categories),
           postingDays: parsed.postingDays,
           imageStyle: parsed.imageStyle,
+        },
+      },
+    },
+  });
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+export async function updateNetworkAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = updateNetworkSchema.parse({
+    networkId: formData.get("networkId"),
+    name: formData.get("name"),
+    ghlLocationId: formData.get("ghlLocationId") || undefined,
+    ghlCompanyId: formData.get("ghlCompanyId") || undefined,
+    apiToken: formData.get("apiToken") || undefined,
+    blogId: formData.get("blogId"),
+    defaultTopic: formData.get("defaultTopic"),
+    categories: formData.get("categories") || undefined,
+    postingDays: formData.getAll("postingDays"),
+    imageStyle: formData.get("imageStyle") || undefined,
+  });
+  const network = await prisma.network.findFirst({
+    where: {
+      id: parsed.networkId,
+      ownerId: user.id,
+    },
+    include: {
+      blogConfig: true,
+    },
+  });
+
+  if (!network) {
+    dashboardError("Network not found.");
+  }
+
+  await prisma.network.update({
+    where: { id: network.id },
+    data: {
+      name: parsed.name,
+      ghlLocationId: parsed.ghlLocationId,
+      ghlCompanyId: parsed.ghlCompanyId,
+      ...(parsed.apiToken
+        ? {
+            encryptedCredentialPayload: encryptJson({
+              apiToken: parsed.apiToken,
+            }),
+          }
+        : {}),
+      blogConfig: {
+        upsert: {
+          create: {
+            blogId: parsed.blogId,
+            defaultTopic: parsed.defaultTopic,
+            categories: listFromText(parsed.categories),
+            postingDays: parsed.postingDays,
+            imageStyle: parsed.imageStyle,
+          },
+          update: {
+            blogId: parsed.blogId,
+            defaultTopic: parsed.defaultTopic,
+            categories: listFromText(parsed.categories),
+            postingDays: parsed.postingDays,
+            imageStyle: parsed.imageStyle,
+          },
         },
       },
     },
