@@ -39,6 +39,10 @@ function listFromText(value?: string) {
     .filter(Boolean);
 }
 
+function dashboardError(message: string): never {
+  redirect(`/dashboard?error=${encodeURIComponent(message)}`);
+}
+
 export async function createNetworkAction(formData: FormData) {
   const user = await requireUser();
   const parsed = networkSchema.parse({
@@ -95,29 +99,39 @@ export async function generatePostAction(formData: FormData) {
   });
 
   if (!network?.blogConfig) {
-    throw new Error("Network not found or missing blog configuration.");
+    dashboardError("Network not found or missing blog configuration.");
   }
 
   const topic = parsed.topic?.trim() || network.blogConfig.defaultTopic;
-  const draft = await generateBlogDraft({
-    networkName: network.name,
-    topic,
-    categories: network.blogConfig.categories,
-    imageStyle: network.blogConfig.imageStyle,
-  });
 
-  await prisma.blogPost.create({
-    data: {
-      networkId: network.id,
+  try {
+    const draft = await generateBlogDraft({
+      networkName: network.name,
       topic,
-      title: draft.title,
-      slug: draft.slug,
-      excerpt: draft.excerpt,
-      bodyMarkdown: draft.bodyMarkdown,
-      categories: draft.categories,
-      imagePrompt: draft.imagePrompt,
-    },
-  });
+      categories: network.blogConfig.categories,
+      imageStyle: network.blogConfig.imageStyle,
+    });
+
+    await prisma.blogPost.create({
+      data: {
+        networkId: network.id,
+        topic,
+        title: draft.title,
+        slug: draft.slug,
+        excerpt: draft.excerpt,
+        bodyMarkdown: draft.bodyMarkdown,
+        categories: draft.categories,
+        imagePrompt: draft.imagePrompt,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to generate blog draft", error);
+    dashboardError(
+      error instanceof Error
+        ? error.message
+        : "Failed to generate blog draft. Check the Railway logs.",
+    );
+  }
 
   revalidatePath("/dashboard");
   redirect("/dashboard");

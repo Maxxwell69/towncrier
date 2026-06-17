@@ -17,8 +17,17 @@ const postingDays = [
   "Sunday",
 ];
 
-export default async function DashboardPage() {
+type DashboardPageProps = {
+  searchParams: Promise<{
+    error?: string;
+  }>;
+};
+
+export default async function DashboardPage({
+  searchParams,
+}: DashboardPageProps) {
   const user = await requireUser();
+  const { error } = await searchParams;
   const networks = await prisma.network.findMany({
     where: { ownerId: user.id },
     include: {
@@ -50,6 +59,13 @@ export default async function DashboardPage() {
             </button>
           </form>
         </header>
+
+        {error ? (
+          <div className="mt-6 rounded-3xl border border-red-200 bg-red-50 p-5 text-red-800 shadow-sm">
+            <p className="font-semibold">Generation failed</p>
+            <p className="mt-1 text-sm">{error}</p>
+          </div>
+        ) : null}
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[420px_1fr]">
           <section className="rounded-3xl bg-white p-6 shadow-sm">
