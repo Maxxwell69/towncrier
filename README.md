@@ -49,10 +49,10 @@ Create one Railway web service and one Railway Postgres service. Set these varia
 - `CLAUDE_MODEL`
 - `GHL_API_BASE_URL`
 - `GHL_API_VERSION`
-- `GHL_BLOG_POSTS_PATH_TEMPLATE`
+- `GHL_CREATE_BLOG_POST_PATH`
 
 The included `railway.json` runs `npm run railway:build`, applies Prisma migrations on start, and checks `/api/health`.
 
 ## GHL Adapter Note
 
-The first adapter uses a configurable blog post path template because the final GHL auth/API shape is still open. If OAuth becomes the final connection method, update `src/lib/ghl.ts` and the encrypted credential payload without changing the dashboard flow.
+The first adapter posts to `/blogs/posts` and sends `locationId`, `blogId`, `urlSlug`, `description`, `rawHTML`, `status`, and optional image/category fields in the request body. If OAuth becomes the final connection method, update `src/lib/ghl.ts` and the encrypted credential payload without changing the dashboard flow.

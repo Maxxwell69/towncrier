@@ -57,12 +57,10 @@ function parseResponseBody(responseText: string) {
   }
 }
 
-function buildBlogPostUrl(blogId: string) {
+function buildBlogPostUrl() {
   const baseUrl =
     process.env.GHL_API_BASE_URL ?? "https://services.leadconnectorhq.com";
-  const pathTemplate =
-    process.env.GHL_BLOG_POSTS_PATH_TEMPLATE ?? "/blogs/{blogId}/posts";
-  const path = pathTemplate.replace("{blogId}", encodeURIComponent(blogId));
+  const path = process.env.GHL_CREATE_BLOG_POST_PATH ?? "/blogs/posts";
 
   return new URL(path, baseUrl).toString();
 }
@@ -79,7 +77,7 @@ export async function publishBlogPost(
     throw new Error("No GHL API token found for this network.");
   }
 
-  const response = await fetch(buildBlogPostUrl(input.blogId), {
+  const response = await fetch(buildBlogPostUrl(), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -89,13 +87,14 @@ export async function publishBlogPost(
     },
     body: JSON.stringify({
       title: input.title,
-      slug: input.slug,
-      excerpt: input.excerpt,
-      content: markdownToSimpleHtml(input.bodyMarkdown),
+      locationId: input.locationId,
+      blogId: input.blogId,
+      urlSlug: input.slug,
+      description: input.excerpt,
+      rawHTML: markdownToSimpleHtml(input.bodyMarkdown),
       categories: input.categories,
       imageUrl: input.imageUrl,
-      locationId: input.locationId,
-      status: "published",
+      status: "PUBLISHED",
     }),
   });
 
