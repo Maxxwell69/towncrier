@@ -7,6 +7,7 @@ import {
   updateDraftAction,
   updateNetworkAction,
 } from "@/app/actions/networks";
+import { SubmitButton } from "@/components/submit-button";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
@@ -60,9 +61,12 @@ export default async function DashboardPage({
             <p className="mt-2 text-slate-300">Signed in as {user.email}</p>
           </div>
           <form action={logoutAction}>
-            <button className="rounded-full border border-white/20 px-5 py-3 font-semibold text-white transition hover:bg-white/10">
+            <SubmitButton
+              className="rounded-full border border-white/20 px-5 py-3 font-semibold text-white transition hover:bg-white/10"
+              pendingText="Logging out..."
+            >
               Log out
-            </button>
+            </SubmitButton>
           </form>
         </header>
 
@@ -201,9 +205,12 @@ export default async function DashboardPage({
                 </div>
               </fieldset>
 
-              <button className="w-full rounded-2xl bg-slate-950 px-5 py-3 font-semibold text-white transition hover:bg-slate-800">
-                Save network
-              </button>
+              <SubmitButton
+                className="w-full rounded-2xl bg-slate-950 px-5 py-3 font-semibold text-white transition hover:bg-slate-800"
+                pendingText="Saving profile..."
+              >
+                Save site profile
+              </SubmitButton>
             </form>
           </section>
 
@@ -436,9 +443,12 @@ export default async function DashboardPage({
                           ))}
                         </div>
                       </fieldset>
-                      <button className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 md:col-span-2">
-                        Save network settings
-                      </button>
+                      <SubmitButton
+                        className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 md:col-span-2"
+                        pendingText="Saving settings..."
+                      >
+                        Save site settings
+                      </SubmitButton>
                     </form>
                   </details>
 
@@ -464,6 +474,10 @@ TOWNCRIER_REVALIDATE_SECRET=${network.revalidateSecret ? "<configured>" : "<opti
 
                   <div className="mt-6 rounded-2xl bg-slate-50 p-4">
                     <h3 className="font-semibold">Generate next blog</h3>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Draft generation can take 20-60 seconds while Claude
+                      writes the post.
+                    </p>
                     <form
                       action={generatePostAction}
                       className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]"
@@ -477,9 +491,12 @@ TOWNCRIER_REVALIDATE_SECRET=${network.revalidateSecret ? "<configured>" : "<opti
                           "Topic for this blog"
                         }
                       />
-                      <button className="rounded-2xl bg-cyan-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-200">
+                      <SubmitButton
+                        className="rounded-2xl bg-cyan-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-200"
+                        pendingText="Generating..."
+                      >
                         Generate draft
-                      </button>
+                      </SubmitButton>
                     </form>
                   </div>
 
@@ -624,9 +641,12 @@ TOWNCRIER_REVALIDATE_SECRET=${network.revalidateSecret ? "<configured>" : "<opti
                                     className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
                                   />
                                 </label>
-                                <button className="rounded-xl bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200">
+                                <SubmitButton
+                                  className="rounded-xl bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
+                                  pendingText="Saving draft..."
+                                >
                                   Save draft
-                                </button>
+                                </SubmitButton>
                               </form>
                             </details>
                           ) : null}
@@ -640,9 +660,12 @@ TOWNCRIER_REVALIDATE_SECRET=${network.revalidateSecret ? "<configured>" : "<opti
                                   name="postId"
                                   value={post.id}
                                 />
-                                <button className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
+                                <SubmitButton
+                                  className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                                  pendingText="Publishing..."
+                                >
                                   Publish
-                                </button>
+                                </SubmitButton>
                               </form>
                             ) : null}
 
@@ -652,9 +675,12 @@ TOWNCRIER_REVALIDATE_SECRET=${network.revalidateSecret ? "<configured>" : "<opti
                                 name="postId"
                                 value={post.id}
                               />
-                              <button className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50">
+                              <SubmitButton
+                                className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50"
+                                pendingText="Deleting..."
+                              >
                                 Delete
-                              </button>
+                              </SubmitButton>
                             </form>
                           </div>
                         </div>
