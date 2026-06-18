@@ -39,6 +39,8 @@ export function publicPostPayload(post: PublicPost) {
     bodyMarkdown: post.bodyMarkdown,
     bodyHtml: post.bodyHtml || markdownToHtml(post.bodyMarkdown),
     categories: post.categories,
+    source: post.source,
+    scheduledFor: post.scheduledFor?.toISOString() ?? null,
     seo: {
       title: post.seoTitle || post.title,
       description: post.seoDescription || post.excerpt,
@@ -48,6 +50,9 @@ export function publicPostPayload(post: PublicPost) {
       url: post.imageUrl,
       alt: post.featuredImageAlt || post.title,
       prompt: post.imagePrompt,
+      provider: post.imageProvider,
+      credit: post.imageCredit,
+      sourceUrl: post.imageSourceUrl,
     },
     publishedAt: post.publishedAt?.toISOString() ?? null,
     updatedAt: post.updatedAt.toISOString(),

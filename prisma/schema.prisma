@@ -24,6 +24,17 @@ enum PublishPlatform {
   wordpress
 }
 
+enum BlogPostSource {
+  claude
+  manual
+  topic_queue
+}
+
+enum ImageProvider {
+  manual
+  pexels
+}
+
 model User {
   id           String    @id @default(cuid())
   email        String    @unique
@@ -64,8 +75,29 @@ model Network {
   owner      User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   blogConfig BlogConfig?
   posts      BlogPost[]
+  topics     Topic[]
 
   @@index([ownerId])
+}
+
+model Topic {
+  id          String    @id @default(cuid())
+  networkId   String
+  title       String
+  description String?
+  category    String?
+  priority    Int       @default(0)
+  isActive    Boolean   @default(true)
+  lastUsedAt  DateTime?
+  useCount    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  network Network    @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  posts   BlogPost[]
+
+  @@index([networkId])
+  @@index([isActive])
 }
 
 model BlogConfig {
@@ -85,6 +117,7 @@ model BlogConfig {
 model BlogPost {
   id               String         @id @default(cuid())
   networkId        String
+  topicId          String?
   topic            String
   title            String
   slug             String
@@ -98,6 +131,11 @@ model BlogPost {
   imagePrompt      String?
   imageUrl         String?
   featuredImageAlt String?
+  imageProvider    ImageProvider  @default(manual)
+  imageCredit      String?
+  imageSourceUrl   String?
+  source           BlogPostSource @default(claude)
+  scheduledFor     DateTime?
   status           BlogPostStatus @default(draft)
   ghlPostId        String?
   externalPostId   String?
@@ -108,9 +146,28 @@ model BlogPost {
   updatedAt        DateTime       @updatedAt
   publishedAt      DateTime?
 
-  network Network @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  network         Network          @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  sourceTopic     Topic?           @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  imageCandidates ImageCandidate[]
 
   @@unique([networkId, slug])
   @@index([networkId])
+  @@index([topicId])
   @@index([status])
+}
+
+model ImageCandidate {
+  id              String        @id @default(cuid())
+  postId          String
+  provider        ImageProvider @default(pexels)
+  imageUrl        String
+  photographer    String?
+  photographerUrl String?
+  sourceUrl       String?
+  altText         String?
+  createdAt       DateTime      @default(now())
+
+  post BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
 }

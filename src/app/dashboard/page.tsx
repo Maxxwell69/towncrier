@@ -1,9 +1,16 @@
 import { logoutAction } from "@/app/actions/auth";
 import {
+  applyImageCandidateAction,
   createNetworkAction,
+  createManualPostAction,
+  createTopicAction,
   deletePostAction,
+  deleteTopicAction,
+  findPexelsImagesAction,
+  generateNextTopicPostAction,
   generatePostAction,
   publishPostAction,
+  toggleTopicAction,
   updateDraftAction,
   updateNetworkAction,
 } from "@/app/actions/networks";
@@ -39,9 +46,22 @@ export default async function DashboardPage({
     where: { ownerId: user.id },
     include: {
       blogConfig: true,
+      topics: {
+        orderBy: [
+          { isActive: "desc" },
+          { useCount: "asc" },
+          { createdAt: "asc" },
+        ],
+      },
       posts: {
         orderBy: { createdAt: "desc" },
         take: 5,
+        include: {
+          imageCandidates: {
+            orderBy: { createdAt: "desc" },
+            take: 6,
+          },
+        },
       },
     },
     orderBy: { createdAt: "desc" },
@@ -473,6 +493,132 @@ TOWNCRIER_REVALIDATE_SECRET=${network.revalidateSecret ? "<configured>" : "<opti
                   </details>
 
                   <div className="mt-6 rounded-2xl bg-slate-50 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="font-semibold">Topic bank</h3>
+                        <p className="mt-1 text-sm text-slate-600">
+                          Add recurring topics and Towncrier will rotate through
+                          the least-used active topic.
+                        </p>
+                      </div>
+                      <form action={generateNextTopicPostAction}>
+                        <input
+                          type="hidden"
+                          name="networkId"
+                          value={network.id}
+                        />
+                        <SubmitButton
+                          className="rounded-xl bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
+                          pendingText="Generating..."
+                        >
+                          Generate from next topic
+                        </SubmitButton>
+                      </form>
+                    </div>
+
+                    <form
+                      action={createTopicAction}
+                      className="mt-4 grid gap-3 md:grid-cols-[1fr_160px_110px_auto]"
+                    >
+                      <input
+                        type="hidden"
+                        name="networkId"
+                        value={network.id}
+                      />
+                      <input
+                        required
+                        name="title"
+                        className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                        placeholder="Topic title"
+                      />
+                      <input
+                        name="category"
+                        className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                        placeholder="Category"
+                      />
+                      <input
+                        name="priority"
+                        className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                        defaultValue="0"
+                        type="number"
+                      />
+                      <SubmitButton
+                        className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                        pendingText="Adding..."
+                      >
+                        Add topic
+                      </SubmitButton>
+                      <textarea
+                        name="description"
+                        rows={2}
+                        className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2 md:col-span-4"
+                        placeholder="Optional notes for Claude"
+                      />
+                    </form>
+
+                    <div className="mt-4 space-y-2">
+                      {network.topics.length === 0 ? (
+                        <p className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-600">
+                          No topics yet. Add 5-10 topics to rotate evenly
+                          through the week.
+                        </p>
+                      ) : (
+                        network.topics.map((topic) => (
+                          <div
+                            key={topic.id}
+                            className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+                          >
+                            <div>
+                              <p className="font-semibold">{topic.title}</p>
+                              <p className="mt-1 text-sm text-slate-600">
+                                {topic.category || "Uncategorized"} / used{" "}
+                                {topic.useCount} time
+                                {topic.useCount === 1 ? "" : "s"}
+                                {topic.lastUsedAt
+                                  ? ` / last used ${topic.lastUsedAt.toLocaleDateString()}`
+                                  : ""}
+                              </p>
+                              {topic.description ? (
+                                <p className="mt-1 text-sm text-slate-500">
+                                  {topic.description}
+                                </p>
+                              ) : null}
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <form action={toggleTopicAction}>
+                                <input
+                                  type="hidden"
+                                  name="topicId"
+                                  value={topic.id}
+                                />
+                                <SubmitButton
+                                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                  pendingText="Updating..."
+                                >
+                                  {topic.isActive ? "Pause" : "Activate"}
+                                </SubmitButton>
+                              </form>
+                              <form action={deleteTopicAction}>
+                                <input
+                                  type="hidden"
+                                  name="topicId"
+                                  value={topic.id}
+                                />
+                                <SubmitButton
+                                  className="rounded-xl border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50"
+                                  pendingText="Deleting..."
+                                >
+                                  Delete
+                                </SubmitButton>
+                              </form>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-6 rounded-2xl bg-slate-50 p-4">
                     <h3 className="font-semibold">Generate next blog</h3>
                     <p className="mt-1 text-sm text-slate-600">
                       Draft generation can take 20-60 seconds while Claude
@@ -500,6 +646,82 @@ TOWNCRIER_REVALIDATE_SECRET=${network.revalidateSecret ? "<configured>" : "<opti
                     </form>
                   </div>
 
+                  <details className="mt-6 rounded-2xl bg-slate-50 p-4">
+                    <summary className="cursor-pointer font-semibold">
+                      Submit your own blog copy
+                    </summary>
+                    <form
+                      action={createManualPostAction}
+                      className="mt-4 space-y-4"
+                    >
+                      <input
+                        type="hidden"
+                        name="networkId"
+                        value={network.id}
+                      />
+                      <TextInput label="Title" name="title" required />
+                      <TextInput label="URL slug" name="slug" />
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">
+                          Excerpt
+                        </span>
+                        <textarea
+                          required
+                          name="excerpt"
+                          rows={3}
+                          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">
+                          Blog copy / markdown
+                        </span>
+                        <textarea
+                          required
+                          name="bodyMarkdown"
+                          rows={12}
+                          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                          placeholder="Paste your full blog copy here."
+                        />
+                      </label>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <TextInput
+                          label="Categories"
+                          name="categories"
+                          placeholder="Back Pain, Wellness"
+                        />
+                        <TextInput label="Scheduled for" name="scheduledFor" />
+                        <TextInput label="SEO title" name="seoTitle" />
+                        <TextInput
+                          label="SEO description"
+                          name="seoDescription"
+                        />
+                        <TextInput label="Canonical URL" name="canonicalUrl" />
+                        <TextInput label="Image URL" name="imageUrl" />
+                        <TextInput
+                          label="Featured image alt"
+                          name="featuredImageAlt"
+                        />
+                      </div>
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">
+                          Image prompt
+                        </span>
+                        <textarea
+                          name="imagePrompt"
+                          rows={3}
+                          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                        />
+                      </label>
+                      <SubmitButton
+                        className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                        pendingText="Saving manual draft..."
+                      >
+                        Save manual draft
+                      </SubmitButton>
+                    </form>
+                  </details>
+
                   <div className="mt-6 space-y-4">
                     {network.posts.length === 0 ? (
                       <p className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-600">
@@ -512,7 +734,10 @@ TOWNCRIER_REVALIDATE_SECRET=${network.revalidateSecret ? "<configured>" : "<opti
                           className="rounded-2xl border border-slate-200 p-4"
                         >
                           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                            {post.status}
+                            {post.status} / {post.source}
+                            {post.scheduledFor
+                              ? ` / scheduled ${post.scheduledFor.toLocaleDateString()}`
+                              : ""}
                           </p>
                           <h3 className="mt-2 text-xl font-semibold">
                             {post.title}
@@ -532,6 +757,26 @@ TOWNCRIER_REVALIDATE_SECRET=${network.revalidateSecret ? "<configured>" : "<opti
                             />
                           ) : null}
 
+                          {post.imageCredit ? (
+                            <p className="mt-2 text-xs text-slate-500">
+                              {post.imageCredit}
+                              {post.imageSourceUrl ? (
+                                <>
+                                  {" "}
+                                  /{" "}
+                                  <a
+                                    className="underline"
+                                    href={post.imageSourceUrl}
+                                    rel="noreferrer"
+                                    target="_blank"
+                                  >
+                                    source
+                                  </a>
+                                </>
+                              ) : null}
+                            </p>
+                          ) : null}
+
                           {post.errorMessage ? (
                             <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">
                               {post.errorMessage}
@@ -542,6 +787,80 @@ TOWNCRIER_REVALIDATE_SECRET=${network.revalidateSecret ? "<configured>" : "<opti
                             <p className="mt-3 text-sm text-slate-500">
                               Image prompt: {post.imagePrompt}
                             </p>
+                          ) : null}
+
+                          {post.status === "draft" ||
+                          post.status === "failed" ? (
+                            <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                  <h4 className="font-semibold">
+                                    Pexels images
+                                  </h4>
+                                  <p className="text-sm text-slate-600">
+                                    Search uses the image prompt, topic, or
+                                    title.
+                                  </p>
+                                </div>
+                                <form action={findPexelsImagesAction}>
+                                  <input
+                                    type="hidden"
+                                    name="postId"
+                                    value={post.id}
+                                  />
+                                  <SubmitButton
+                                    className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                                    pendingText="Searching..."
+                                  >
+                                    Find Pexels images
+                                  </SubmitButton>
+                                </form>
+                              </div>
+
+                              {post.imageCandidates.length > 0 ? (
+                                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                                  {post.imageCandidates.map((candidate) => (
+                                    <div
+                                      key={candidate.id}
+                                      className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
+                                    >
+                                      <div
+                                        aria-label={
+                                          candidate.altText ?? post.title
+                                        }
+                                        className="aspect-[16/9] bg-cover bg-center"
+                                        role="img"
+                                        style={{
+                                          backgroundImage: `url(${candidate.imageUrl})`,
+                                        }}
+                                      />
+                                      <div className="space-y-2 p-3">
+                                        <p className="text-xs text-slate-500">
+                                          {candidate.photographer
+                                            ? `Photo by ${candidate.photographer}`
+                                            : "Pexels image"}
+                                        </p>
+                                        <form
+                                          action={applyImageCandidateAction}
+                                        >
+                                          <input
+                                            type="hidden"
+                                            name="candidateId"
+                                            value={candidate.id}
+                                          />
+                                          <SubmitButton
+                                            className="w-full rounded-xl bg-cyan-300 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
+                                            pendingText="Applying..."
+                                          >
+                                            Use image
+                                          </SubmitButton>
+                                        </form>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
                           ) : null}
 
                           {post.status === "draft" ||

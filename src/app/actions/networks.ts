@@ -16,6 +16,7 @@ import {
 import { encryptJson } from "@/lib/crypto";
 import { prisma } from "@/lib/db";
 import { publishBlogPost } from "@/lib/ghl";
+import { searchPexelsImages } from "@/lib/pexels";
 
 const networkSchema = z.object({
   name: z.string().min(2),
@@ -53,6 +54,18 @@ const generateSchema = z.object({
   topic: z.string().optional(),
 });
 
+const topicSchema = z.object({
+  networkId: z.string().min(1),
+  title: z.string().min(3),
+  description: z.string().optional(),
+  category: z.string().optional(),
+  priority: z.coerce.number().int().default(0),
+});
+
+const topicIdSchema = z.object({
+  topicId: z.string().min(1),
+});
+
 const publishSchema = z.object({
   postId: z.string().min(1),
 });
@@ -74,6 +87,26 @@ const updateDraftSchema = z.object({
   imagePrompt: z.string().optional(),
   imageUrl: z.string().url().optional().or(z.literal("")),
   featuredImageAlt: z.string().optional(),
+});
+
+const manualPostSchema = z.object({
+  networkId: z.string().min(1),
+  title: z.string().min(5),
+  slug: z.string().optional(),
+  excerpt: z.string().min(20),
+  bodyMarkdown: z.string().min(200),
+  categories: z.string().optional(),
+  seoTitle: z.string().optional(),
+  seoDescription: z.string().optional(),
+  canonicalUrl: z.string().url().optional().or(z.literal("")),
+  imagePrompt: z.string().optional(),
+  imageUrl: z.string().url().optional().or(z.literal("")),
+  featuredImageAlt: z.string().optional(),
+  scheduledFor: z.string().optional(),
+});
+
+const imageCandidateSchema = z.object({
+  candidateId: z.string().min(1),
 });
 
 function listFromText(value?: string) {
@@ -144,6 +177,86 @@ async function revalidateVercelSite(input: {
     status: response.status,
     body: text,
   };
+}
+
+async function getOwnedNetwork(networkId: string, ownerId: string) {
+  return prisma.network.findFirst({
+    where: {
+      id: networkId,
+      ownerId,
+    },
+    include: {
+      blogConfig: true,
+    },
+  });
+}
+
+async function createDraftFromClaude(input: {
+  network: NonNullable<Awaited<ReturnType<typeof getOwnedNetwork>>>;
+  topic: string;
+  source: "claude" | "topic_queue";
+  topicId?: string;
+}) {
+  if (!input.network.blogConfig) {
+    dashboardError("Site profile is missing blog configuration.");
+  }
+
+  const existingDraft = await prisma.blogPost.findFirst({
+    where: {
+      networkId: input.network.id,
+      topic: {
+        equals: input.topic,
+        mode: "insensitive",
+      },
+      status: {
+        in: ["draft", "failed"],
+      },
+    },
+  });
+
+  if (existingDraft) {
+    dashboardError(
+      "A draft already exists for that topic. Edit, publish, or delete it before generating another.",
+    );
+  }
+
+  const draft = await generateBlogDraft({
+    networkName: input.network.name,
+    domain: input.network.domain,
+    locationName: input.network.locationName,
+    city: input.network.city,
+    state: input.network.state,
+    serviceArea: input.network.serviceArea,
+    authorName: input.network.authorName,
+    authorTitle: input.network.authorTitle,
+    topic: input.topic,
+    categories: input.network.blogConfig.categories,
+    imageStyle: input.network.blogConfig.imageStyle,
+  });
+  const postSlug = await uniquePostSlug(
+    input.network.id,
+    draft.slug || draft.title,
+  );
+  const bodyHtml = markdownToHtml(draft.bodyMarkdown);
+
+  return prisma.blogPost.create({
+    data: {
+      networkId: input.network.id,
+      topicId: input.topicId,
+      topic: input.topic,
+      title: draft.title,
+      slug: postSlug,
+      excerpt: draft.excerpt,
+      bodyMarkdown: draft.bodyMarkdown,
+      bodyHtml,
+      categories: draft.categories,
+      seoTitle: draft.title,
+      seoDescription: draft.excerpt,
+      imagePrompt: draft.imagePrompt,
+      featuredImageAlt: draft.title,
+      source: input.source,
+    },
+  });
 }
 
 export async function createNetworkAction(formData: FormData) {
@@ -326,72 +439,19 @@ export async function generatePostAction(formData: FormData) {
     networkId: formData.get("networkId"),
     topic: formData.get("topic") || undefined,
   });
-  const network = await prisma.network.findFirst({
-    where: {
-      id: parsed.networkId,
-      ownerId: user.id,
-    },
-    include: {
-      blogConfig: true,
-    },
-  });
+  const network = await getOwnedNetwork(parsed.networkId, user.id);
 
   if (!network?.blogConfig) {
     dashboardError("Network not found or missing blog configuration.");
   }
 
   const topic = parsed.topic?.trim() || network.blogConfig.defaultTopic;
-  const existingDraft = await prisma.blogPost.findFirst({
-    where: {
-      networkId: network.id,
-      topic: {
-        equals: topic,
-        mode: "insensitive",
-      },
-      status: {
-        in: ["draft", "failed"],
-      },
-    },
-  });
-
-  if (existingDraft) {
-    dashboardError(
-      "A draft already exists for that topic. Edit, publish, or delete it before generating another.",
-    );
-  }
 
   try {
-    const draft = await generateBlogDraft({
-      networkName: network.name,
-      domain: network.domain,
-      locationName: network.locationName,
-      city: network.city,
-      state: network.state,
-      serviceArea: network.serviceArea,
-      authorName: network.authorName,
-      authorTitle: network.authorTitle,
+    await createDraftFromClaude({
+      network,
       topic,
-      categories: network.blogConfig.categories,
-      imageStyle: network.blogConfig.imageStyle,
-    });
-    const postSlug = await uniquePostSlug(network.id, draft.slug || draft.title);
-    const bodyHtml = markdownToHtml(draft.bodyMarkdown);
-
-    await prisma.blogPost.create({
-      data: {
-        networkId: network.id,
-        topic,
-        title: draft.title,
-        slug: postSlug,
-        excerpt: draft.excerpt,
-        bodyMarkdown: draft.bodyMarkdown,
-        bodyHtml,
-        categories: draft.categories,
-        seoTitle: draft.title,
-        seoDescription: draft.excerpt,
-        imagePrompt: draft.imagePrompt,
-        featuredImageAlt: draft.title,
-      },
+      source: "claude",
     });
   } catch (error) {
     console.error("Failed to generate blog draft", error);
@@ -401,6 +461,205 @@ export async function generatePostAction(formData: FormData) {
         : "Failed to generate blog draft. Check the Railway logs.",
     );
   }
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+export async function createTopicAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = topicSchema.parse({
+    networkId: formData.get("networkId"),
+    title: formData.get("title"),
+    description: optionalString(formData.get("description")),
+    category: optionalString(formData.get("category")),
+    priority: formData.get("priority") || 0,
+  });
+  const network = await getOwnedNetwork(parsed.networkId, user.id);
+
+  if (!network) {
+    dashboardError("Site profile not found.");
+  }
+
+  await prisma.topic.create({
+    data: {
+      networkId: network.id,
+      title: parsed.title,
+      description: parsed.description,
+      category: parsed.category,
+      priority: parsed.priority,
+    },
+  });
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+export async function toggleTopicAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = topicIdSchema.parse({
+    topicId: formData.get("topicId"),
+  });
+  const topic = await prisma.topic.findFirst({
+    where: {
+      id: parsed.topicId,
+      network: {
+        ownerId: user.id,
+      },
+    },
+  });
+
+  if (!topic) {
+    dashboardError("Topic not found.");
+  }
+
+  await prisma.topic.update({
+    where: { id: topic.id },
+    data: {
+      isActive: !topic.isActive,
+    },
+  });
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+export async function deleteTopicAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = topicIdSchema.parse({
+    topicId: formData.get("topicId"),
+  });
+  const topic = await prisma.topic.findFirst({
+    where: {
+      id: parsed.topicId,
+      network: {
+        ownerId: user.id,
+      },
+    },
+  });
+
+  if (!topic) {
+    dashboardError("Topic not found.");
+  }
+
+  await prisma.topic.delete({
+    where: { id: topic.id },
+  });
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+export async function generateNextTopicPostAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = generateSchema.parse({
+    networkId: formData.get("networkId"),
+  });
+  const network = await getOwnedNetwork(parsed.networkId, user.id);
+
+  if (!network?.blogConfig) {
+    dashboardError("Site profile not found or missing blog configuration.");
+  }
+
+  const topic = await prisma.topic.findFirst({
+    where: {
+      networkId: network.id,
+      isActive: true,
+    },
+    orderBy: [
+      { useCount: "asc" },
+      { lastUsedAt: { sort: "asc", nulls: "first" } },
+      { priority: "desc" },
+      { createdAt: "asc" },
+    ],
+  });
+
+  if (!topic) {
+    dashboardError("Add at least one active topic before generating from the topic bank.");
+  }
+
+  const topicText = [topic.title, topic.description]
+    .filter(Boolean)
+    .join("\n\n");
+
+  try {
+    await createDraftFromClaude({
+      network,
+      topic: topicText,
+      source: "topic_queue",
+      topicId: topic.id,
+    });
+
+    await prisma.topic.update({
+      where: { id: topic.id },
+      data: {
+        useCount: { increment: 1 },
+        lastUsedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error("Failed to generate queued blog draft", error);
+    dashboardError(
+      error instanceof Error
+        ? error.message
+        : "Failed to generate queued blog draft. Check the Railway logs.",
+    );
+  }
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+export async function createManualPostAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = manualPostSchema.parse({
+    networkId: formData.get("networkId"),
+    title: formData.get("title"),
+    slug: optionalString(formData.get("slug")),
+    excerpt: formData.get("excerpt"),
+    bodyMarkdown: formData.get("bodyMarkdown"),
+    categories: optionalString(formData.get("categories")),
+    seoTitle: optionalString(formData.get("seoTitle")),
+    seoDescription: optionalString(formData.get("seoDescription")),
+    canonicalUrl: formData.get("canonicalUrl") || "",
+    imagePrompt: optionalString(formData.get("imagePrompt")),
+    imageUrl: formData.get("imageUrl") || "",
+    featuredImageAlt: optionalString(formData.get("featuredImageAlt")),
+    scheduledFor: optionalString(formData.get("scheduledFor")),
+  });
+  const network = await getOwnedNetwork(parsed.networkId, user.id);
+
+  if (!network) {
+    dashboardError("Site profile not found.");
+  }
+
+  const postSlug = await uniquePostSlug(
+    network.id,
+    parsed.slug || parsed.title,
+  );
+  const bodyHtml = markdownToHtml(parsed.bodyMarkdown);
+
+  await prisma.blogPost.create({
+    data: {
+      networkId: network.id,
+      topic: parsed.title,
+      title: parsed.title,
+      slug: postSlug,
+      excerpt: parsed.excerpt,
+      bodyMarkdown: parsed.bodyMarkdown,
+      bodyHtml,
+      categories: listFromText(parsed.categories),
+      seoTitle: parsed.seoTitle || parsed.title,
+      seoDescription: parsed.seoDescription || parsed.excerpt,
+      canonicalUrl: parsed.canonicalUrl || null,
+      imagePrompt: parsed.imagePrompt,
+      imageUrl: parsed.imageUrl || null,
+      featuredImageAlt: parsed.featuredImageAlt || parsed.title,
+      imageProvider: parsed.imageUrl ? "manual" : "manual",
+      source: "manual",
+      scheduledFor: parsed.scheduledFor ? new Date(parsed.scheduledFor) : null,
+    },
+  });
 
   revalidatePath("/dashboard");
   redirect("/dashboard");
@@ -461,6 +720,9 @@ export async function updateDraftAction(formData: FormData) {
       imagePrompt: parsed.imagePrompt,
       imageUrl: parsed.imageUrl || null,
       featuredImageAlt: parsed.featuredImageAlt || parsed.title,
+      imageProvider: parsed.imageUrl ? "manual" : "manual",
+      imageCredit: null,
+      imageSourceUrl: null,
       status: "draft",
       errorMessage: null,
     },
@@ -490,6 +752,98 @@ export async function deletePostAction(formData: FormData) {
 
   await prisma.blogPost.delete({
     where: { id: post.id },
+  });
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+export async function findPexelsImagesAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = postIdSchema.parse({
+    postId: formData.get("postId"),
+  });
+  const post = await prisma.blogPost.findFirst({
+    where: {
+      id: parsed.postId,
+      network: {
+        ownerId: user.id,
+      },
+    },
+  });
+
+  if (!post) {
+    dashboardError("Post not found.");
+  }
+
+  const query = post.imagePrompt || post.topic || post.title;
+
+  try {
+    const candidates = await searchPexelsImages(query);
+
+    await prisma.imageCandidate.deleteMany({
+      where: { postId: post.id },
+    });
+
+    await prisma.imageCandidate.createMany({
+      data: candidates
+        .filter((candidate) => candidate.imageUrl)
+        .map((candidate) => ({
+          postId: post.id,
+          imageUrl: candidate.imageUrl,
+          photographer: candidate.photographer,
+          photographerUrl: candidate.photographerUrl,
+          sourceUrl: candidate.sourceUrl,
+          altText: candidate.altText,
+        })),
+    });
+  } catch (error) {
+    console.error("Failed to search Pexels images", error);
+    dashboardError(
+      error instanceof Error
+        ? error.message
+        : "Failed to search Pexels images.",
+    );
+  }
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+export async function applyImageCandidateAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = imageCandidateSchema.parse({
+    candidateId: formData.get("candidateId"),
+  });
+  const candidate = await prisma.imageCandidate.findFirst({
+    where: {
+      id: parsed.candidateId,
+      post: {
+        network: {
+          ownerId: user.id,
+        },
+      },
+    },
+    include: {
+      post: true,
+    },
+  });
+
+  if (!candidate) {
+    dashboardError("Image candidate not found.");
+  }
+
+  await prisma.blogPost.update({
+    where: { id: candidate.postId },
+    data: {
+      imageUrl: candidate.imageUrl,
+      featuredImageAlt: candidate.altText || candidate.post.title,
+      imageProvider: "pexels",
+      imageCredit: candidate.photographer
+        ? `Photo by ${candidate.photographer} on Pexels`
+        : "Photo from Pexels",
+      imageSourceUrl: candidate.sourceUrl,
+    },
   });
 
   revalidatePath("/dashboard");
