@@ -44,10 +44,10 @@ export default async function Home() {
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
-              href={user ? "/dashboard" : "/signup"}
+              href={user ? "/dashboard" : "/login"}
               className="rounded-full bg-cyan-300 px-6 py-3 text-center font-semibold text-slate-950 transition hover:bg-cyan-200"
             >
-              {user ? "Open dashboard" : "Start free"}
+              {user ? "Open dashboard" : "Admin login"}
             </Link>
             <Link
               href="/docs"

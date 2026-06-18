@@ -32,7 +32,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
         {error ? (
           <div className="mt-6 rounded-2xl border border-red-300/40 bg-red-500/10 p-4 text-sm text-red-100">
-            Please check your email and password.
+            {error === "signup-disabled"
+              ? "Public signup is disabled. Please use the admin login."
+              : "Please check your email and password."}
           </div>
         ) : null}
 
@@ -70,10 +72,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </form>
 
         <p className="mt-6 text-center text-sm text-slate-300">
-          Need an account?{" "}
-          <Link href="/signup" className="font-semibold text-cyan-300">
-            Sign up
-          </Link>
+          Access is limited to approved admins.
         </p>
       </section>
     </main>

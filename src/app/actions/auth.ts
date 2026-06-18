@@ -50,6 +50,10 @@ export async function logoutAction() {
 }
 
 export async function signupAction(formData: FormData) {
+  if (process.env.ALLOW_PUBLIC_SIGNUP !== "true") {
+    redirect("/login?error=signup-disabled");
+  }
+
   const parsed = signupSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
