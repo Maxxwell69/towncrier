@@ -1,6 +1,6 @@
 "use server";
 
-import type { Prisma } from "@prisma/client";
+import type { BlogConfig, BlogPost, Network, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -42,6 +42,9 @@ const networkSchema = z.object({
   categories: z.string().optional(),
   postingDays: z.array(z.string()).default([]),
   imageStyle: z.string().optional(),
+  automationEnabled: z.boolean().default(false),
+  autoPublishEnabled: z.boolean().default(false),
+  autoImageEnabled: z.boolean().default(true),
 });
 
 const updateNetworkSchema = networkSchema.extend({
@@ -121,6 +124,10 @@ function optionalString(value: FormDataEntryValue | null) {
   return stringValue || undefined;
 }
 
+function checkboxValue(formData: FormData, name: string) {
+  return formData.get(name) === "on";
+}
+
 function dashboardError(message: string): never {
   redirect(`/dashboard?error=${encodeURIComponent(message)}`);
 }
@@ -198,6 +205,111 @@ async function revalidatePublishedPost(post: {
     revalidateSecret: post.network?.revalidateSecret,
     slug: post.slug,
   });
+}
+
+type PublishablePost = BlogPost & {
+  network: Network & {
+    blogConfig: BlogConfig | null;
+  };
+};
+
+async function getOwnedPostForPublish(postId: string, ownerId: string) {
+  return prisma.blogPost.findFirst({
+    where: {
+      id: postId,
+      network: {
+        ownerId,
+      },
+    },
+    include: {
+      network: {
+        include: {
+          blogConfig: true,
+        },
+      },
+    },
+  });
+}
+
+async function publishPostRecord(post: PublishablePost) {
+  if (!post.network.blogConfig) {
+    throw new Error("Post not found or missing blog configuration.");
+  }
+
+  const bodyHtml = post.bodyHtml || markdownToHtml(post.bodyMarkdown);
+
+  await prisma.blogPost.update({
+    where: { id: post.id },
+    data: {
+      status: "publishing",
+      errorMessage: null,
+    },
+  });
+
+  try {
+    if (post.network.platform === "ghl") {
+      if (!post.network.blogConfig.blogId) {
+        throw new Error("GHL blog ID is required for GHL publishing.");
+      }
+
+      const result = await publishBlogPost({
+        blogId: post.network.blogConfig.blogId,
+        locationId: post.network.ghlLocationId,
+        encryptedCredentialPayload: post.network.encryptedCredentialPayload,
+        title: post.title,
+        slug: post.slug,
+        excerpt: post.excerpt,
+        bodyMarkdown: post.bodyMarkdown,
+        categories: post.categories,
+        imageUrl: post.imageUrl,
+      });
+
+      await prisma.blogPost.update({
+        where: { id: post.id },
+        data: {
+          bodyHtml,
+          status: "published",
+          ghlPostId: result.externalId,
+          externalPostId: result.externalId,
+          publishedTo: "ghl",
+          publishResponse: result.response as Prisma.InputJsonValue,
+          publishedAt: new Date(),
+        },
+      });
+
+      return;
+    }
+
+    const revalidateResult = await revalidateVercelSite({
+      revalidateUrl: post.network.revalidateUrl,
+      revalidateSecret: post.network.revalidateSecret,
+      slug: post.slug,
+    });
+
+    await prisma.blogPost.update({
+      where: { id: post.id },
+      data: {
+        bodyHtml,
+        status: "published",
+        externalPostId: post.id,
+        publishedTo: "towncrier",
+        publishResponse: {
+          platform: "vercel",
+          revalidate: revalidateResult,
+        } as Prisma.InputJsonValue,
+        publishedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    await prisma.blogPost.update({
+      where: { id: post.id },
+      data: {
+        status: "failed",
+        errorMessage:
+          error instanceof Error ? error.message : "Unknown publish error.",
+      },
+    });
+  }
 }
 
 async function getOwnedNetwork(networkId: string, ownerId: string) {
@@ -325,13 +437,34 @@ async function createDraftFromClaude(input: {
     },
   });
 
-  await attachAutomaticPexelsImage({
-    postId: post.id,
-    query: draft.imagePrompt || input.topic || draft.title,
-    fallbackAlt: draft.title,
-  });
+  if (input.network.blogConfig.autoImageEnabled) {
+    await attachAutomaticPexelsImage({
+      postId: post.id,
+      query: draft.imagePrompt || input.topic || draft.title,
+      fallbackAlt: draft.title,
+    });
+  }
 
   return post;
+}
+
+async function maybeAutoPublishGeneratedPost(input: {
+  postId: string;
+  network: NonNullable<Awaited<ReturnType<typeof getOwnedNetwork>>>;
+  ownerId: string;
+}) {
+  if (
+    !input.network.blogConfig?.automationEnabled ||
+    !input.network.blogConfig.autoPublishEnabled
+  ) {
+    return;
+  }
+
+  const post = await getOwnedPostForPublish(input.postId, input.ownerId);
+
+  if (post) {
+    await publishPostRecord(post);
+  }
 }
 
 export async function createNetworkAction(formData: FormData) {
@@ -360,6 +493,9 @@ export async function createNetworkAction(formData: FormData) {
     categories: optionalString(formData.get("categories")),
     postingDays: formData.getAll("postingDays"),
     imageStyle: optionalString(formData.get("imageStyle")),
+    automationEnabled: checkboxValue(formData, "automationEnabled"),
+    autoPublishEnabled: checkboxValue(formData, "autoPublishEnabled"),
+    autoImageEnabled: checkboxValue(formData, "autoImageEnabled"),
   });
   const siteSlug = slugify(parsed.slug || parsed.name);
 
@@ -398,6 +534,9 @@ export async function createNetworkAction(formData: FormData) {
           categories: listFromText(parsed.categories),
           postingDays: parsed.postingDays,
           imageStyle: parsed.imageStyle,
+          automationEnabled: parsed.automationEnabled,
+          autoPublishEnabled: parsed.autoPublishEnabled,
+          autoImageEnabled: parsed.autoImageEnabled,
         },
       },
     },
@@ -434,6 +573,9 @@ export async function updateNetworkAction(formData: FormData) {
     categories: optionalString(formData.get("categories")),
     postingDays: formData.getAll("postingDays"),
     imageStyle: optionalString(formData.get("imageStyle")),
+    automationEnabled: checkboxValue(formData, "automationEnabled"),
+    autoPublishEnabled: checkboxValue(formData, "autoPublishEnabled"),
+    autoImageEnabled: checkboxValue(formData, "autoImageEnabled"),
   });
   const network = await prisma.network.findFirst({
     where: {
@@ -491,6 +633,9 @@ export async function updateNetworkAction(formData: FormData) {
             categories: listFromText(parsed.categories),
             postingDays: parsed.postingDays,
             imageStyle: parsed.imageStyle,
+            automationEnabled: parsed.automationEnabled,
+            autoPublishEnabled: parsed.autoPublishEnabled,
+            autoImageEnabled: parsed.autoImageEnabled,
           },
           update: {
             blogId: parsed.blogId || null,
@@ -498,6 +643,9 @@ export async function updateNetworkAction(formData: FormData) {
             categories: listFromText(parsed.categories),
             postingDays: parsed.postingDays,
             imageStyle: parsed.imageStyle,
+            automationEnabled: parsed.automationEnabled,
+            autoPublishEnabled: parsed.autoPublishEnabled,
+            autoImageEnabled: parsed.autoImageEnabled,
           },
         },
       },
@@ -523,10 +671,15 @@ export async function generatePostAction(formData: FormData) {
   const topic = parsed.topic?.trim() || network.blogConfig.defaultTopic;
 
   try {
-    await createDraftFromClaude({
+    const post = await createDraftFromClaude({
       network,
       topic,
       source: "claude",
+    });
+    await maybeAutoPublishGeneratedPost({
+      postId: post.id,
+      network,
+      ownerId: user.id,
     });
   } catch (error) {
     console.error("Failed to generate blog draft", error);
@@ -658,7 +811,7 @@ export async function generateNextTopicPostAction(formData: FormData) {
     .join("\n\n");
 
   try {
-    await createDraftFromClaude({
+    const post = await createDraftFromClaude({
       network,
       topic: topicText,
       source: "topic_queue",
@@ -671,6 +824,11 @@ export async function generateNextTopicPostAction(formData: FormData) {
         useCount: { increment: 1 },
         lastUsedAt: new Date(),
       },
+    });
+    await maybeAutoPublishGeneratedPost({
+      postId: post.id,
+      network,
+      ownerId: user.id,
     });
   } catch (error) {
     console.error("Failed to generate queued blog draft", error);
@@ -736,7 +894,7 @@ export async function createManualPostAction(formData: FormData) {
     },
   });
 
-  if (!parsed.imageUrl) {
+  if (!parsed.imageUrl && network.blogConfig?.autoImageEnabled) {
     await attachAutomaticPexelsImage({
       postId: post.id,
       query: parsed.imagePrompt || parsed.title,
@@ -949,99 +1107,13 @@ export async function publishPostAction(formData: FormData) {
   const parsed = publishSchema.parse({
     postId: formData.get("postId"),
   });
-  const post = await prisma.blogPost.findFirst({
-    where: {
-      id: parsed.postId,
-      network: {
-        ownerId: user.id,
-      },
-    },
-    include: {
-      network: {
-        include: {
-          blogConfig: true,
-        },
-      },
-    },
-  });
+  const post = await getOwnedPostForPublish(parsed.postId, user.id);
 
-  if (!post?.network.blogConfig) {
+  if (!post) {
     throw new Error("Post not found or missing blog configuration.");
   }
 
-  const bodyHtml = post.bodyHtml || markdownToHtml(post.bodyMarkdown);
-
-  await prisma.blogPost.update({
-    where: { id: post.id },
-    data: {
-      status: "publishing",
-      errorMessage: null,
-    },
-  });
-
-  try {
-    if (post.network.platform === "ghl") {
-      if (!post.network.blogConfig.blogId) {
-        throw new Error("GHL blog ID is required for GHL publishing.");
-      }
-
-      const result = await publishBlogPost({
-        blogId: post.network.blogConfig.blogId,
-        locationId: post.network.ghlLocationId,
-        encryptedCredentialPayload: post.network.encryptedCredentialPayload,
-        title: post.title,
-        slug: post.slug,
-        excerpt: post.excerpt,
-        bodyMarkdown: post.bodyMarkdown,
-        categories: post.categories,
-        imageUrl: post.imageUrl,
-      });
-
-      await prisma.blogPost.update({
-        where: { id: post.id },
-        data: {
-          bodyHtml,
-          status: "published",
-          ghlPostId: result.externalId,
-          externalPostId: result.externalId,
-          publishedTo: "ghl",
-          publishResponse: result.response as Prisma.InputJsonValue,
-          publishedAt: new Date(),
-        },
-      });
-    } else {
-      const revalidateResult = await revalidateVercelSite({
-        revalidateUrl: post.network.revalidateUrl,
-        revalidateSecret: post.network.revalidateSecret,
-        slug: post.slug,
-      });
-
-      await prisma.blogPost.update({
-        where: { id: post.id },
-        data: {
-          bodyHtml,
-          status: "published",
-          externalPostId: post.id,
-          publishedTo: "towncrier",
-          publishResponse: {
-            platform: "vercel",
-            revalidate: revalidateResult,
-          } as Prisma.InputJsonValue,
-          publishedAt: new Date(),
-        },
-      });
-    }
-  } catch (error) {
-    await prisma.blogPost.update({
-      where: { id: post.id },
-      data: {
-        status: "failed",
-        errorMessage:
-          error instanceof Error ? error.message : "Unknown publish error.",
-      },
-    });
-  }
-
+  await publishPostRecord(post);
   revalidatePath("/dashboard");
   redirect("/dashboard");
 }

@@ -225,6 +225,27 @@ export default async function DashboardPage({
                 </div>
               </fieldset>
 
+              <fieldset className="rounded-2xl bg-slate-50 p-4">
+                <legend className="text-sm font-semibold text-slate-800">
+                  Automation
+                </legend>
+                <div className="mt-3 space-y-3">
+                  <CheckboxInput
+                    label="Enable automated generation workflow"
+                    name="automationEnabled"
+                  />
+                  <CheckboxInput
+                    label="Auto-publish generated drafts"
+                    name="autoPublishEnabled"
+                  />
+                  <CheckboxInput
+                    defaultChecked
+                    label="Auto-select Pexels image"
+                    name="autoImageEnabled"
+                  />
+                </div>
+              </fieldset>
+
               <SubmitButton
                 className="w-full rounded-2xl bg-slate-950 px-5 py-3 font-semibold text-white transition hover:bg-slate-800"
                 pendingText="Saving profile..."
@@ -462,6 +483,38 @@ export default async function DashboardPage({
                             </label>
                           ))}
                         </div>
+                      </fieldset>
+                      <fieldset className="rounded-2xl bg-white p-4 md:col-span-2">
+                        <legend className="text-sm font-semibold text-slate-800">
+                          Automation
+                        </legend>
+                        <div className="mt-3 grid gap-3 md:grid-cols-3">
+                          <CheckboxInput
+                            defaultChecked={
+                              network.blogConfig?.automationEnabled ?? false
+                            }
+                            label="Enable automated generation"
+                            name="automationEnabled"
+                          />
+                          <CheckboxInput
+                            defaultChecked={
+                              network.blogConfig?.autoPublishEnabled ?? false
+                            }
+                            label="Auto-publish generated drafts"
+                            name="autoPublishEnabled"
+                          />
+                          <CheckboxInput
+                            defaultChecked={
+                              network.blogConfig?.autoImageEnabled ?? true
+                            }
+                            label="Auto-select Pexels image"
+                            name="autoImageEnabled"
+                          />
+                        </div>
+                        <p className="mt-3 text-sm text-slate-500">
+                          When enabled, Claude-generated drafts can move through
+                          image selection and publication automatically.
+                        </p>
                       </fieldset>
                       <SubmitButton
                         className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 md:col-span-2"
@@ -1044,6 +1097,28 @@ function TextInput({
         className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
         placeholder={placeholder}
       />
+    </label>
+  );
+}
+
+function CheckboxInput({
+  label,
+  name,
+  defaultChecked,
+}: {
+  label: string;
+  name: string;
+  defaultChecked?: boolean;
+}) {
+  return (
+    <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+      <input
+        defaultChecked={defaultChecked}
+        name={name}
+        type="checkbox"
+        className="h-4 w-4 rounded border-slate-300"
+      />
+      {label}
     </label>
   );
 }
