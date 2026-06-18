@@ -1,3 +1,4 @@
+import { markdownToHtml } from "@/lib/content";
 import { decryptJson } from "@/lib/crypto";
 
 type GhlCredentialPayload = {
@@ -11,7 +12,7 @@ const ghlIdPattern = /^[a-z\d]{10,40}$/i;
 export type PublishBlogPostInput = {
   blogId: string;
   locationId?: string | null;
-  encryptedCredentialPayload: string;
+  encryptedCredentialPayload?: string | null;
   title: string;
   slug: string;
   excerpt: string;
@@ -24,29 +25,6 @@ export type PublishBlogPostResult = {
   externalId?: string;
   response: unknown;
 };
-
-function markdownToSimpleHtml(markdown: string) {
-  return markdown
-    .split(/\n{2,}/)
-    .map((block) => {
-      const trimmed = block.trim();
-
-      if (trimmed.startsWith("# ")) {
-        return `<h1>${trimmed.slice(2)}</h1>`;
-      }
-
-      if (trimmed.startsWith("## ")) {
-        return `<h2>${trimmed.slice(3)}</h2>`;
-      }
-
-      if (trimmed.startsWith("### ")) {
-        return `<h3>${trimmed.slice(4)}</h3>`;
-      }
-
-      return `<p>${trimmed.replace(/\n/g, "<br />")}</p>`;
-    })
-    .join("\n");
-}
 
 function parseResponseBody(responseText: string) {
   if (!responseText) {
@@ -79,6 +57,10 @@ function isGhlId(value: string) {
 export async function publishBlogPost(
   input: PublishBlogPostInput,
 ): Promise<PublishBlogPostResult> {
+  if (!input.encryptedCredentialPayload) {
+    throw new Error("No GHL credentials found for this site profile.");
+  }
+
   const credentials = decryptJson<GhlCredentialPayload>(
     input.encryptedCredentialPayload,
   );
@@ -109,7 +91,7 @@ export async function publishBlogPost(
       blogId: input.blogId,
       urlSlug: input.slug,
       description: input.excerpt,
-      rawHTML: markdownToSimpleHtml(input.bodyMarkdown),
+      rawHTML: markdownToHtml(input.bodyMarkdown),
       ...(categoryIds.length > 0 ? { categories: categoryIds } : {}),
       imageUrl: input.imageUrl,
       status: "PUBLISHED",

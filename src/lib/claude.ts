@@ -14,6 +14,13 @@ export type GeneratedDraft = z.infer<typeof draftSchema>;
 
 type GenerateBlogDraftInput = {
   networkName: string;
+  domain?: string | null;
+  locationName?: string | null;
+  city?: string | null;
+  state?: string | null;
+  serviceArea?: string | null;
+  authorName?: string | null;
+  authorTitle?: string | null;
   topic: string;
   categories: string[];
   imageStyle?: string | null;
@@ -50,6 +57,10 @@ export async function generateBlogDraft(input: GenerateBlogDraftInput) {
         role: "user",
         content: [
           `Website/network: ${input.networkName}`,
+          `Domain: ${input.domain || "not provided"}`,
+          `Location: ${[input.locationName, input.city, input.state].filter(Boolean).join(", ") || "not provided"}`,
+          `Service area: ${input.serviceArea || "not provided"}`,
+          `Author: ${[input.authorName, input.authorTitle].filter(Boolean).join(", ") || "not provided"}`,
           `Topic: ${input.topic}`,
           `Preferred categories: ${input.categories.join(", ") || "none"}`,
           `Image style: ${input.imageStyle || "natural editorial image"}`,

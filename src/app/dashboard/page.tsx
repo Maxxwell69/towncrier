@@ -31,6 +31,9 @@ export default async function DashboardPage({
 }: DashboardPageProps) {
   const user = await requireUser();
   const { error } = await searchParams;
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    "https://towncrier-production.up.railway.app";
   const networks = await prisma.network.findMany({
     where: { ownerId: user.id },
     include: {
@@ -52,7 +55,7 @@ export default async function DashboardPage({
               Towncrier
             </p>
             <h1 className="mt-3 text-4xl font-semibold">
-              GHL blog network dashboard
+              Vercel blog hub dashboard
             </h1>
             <p className="mt-2 text-slate-300">Signed in as {user.email}</p>
           </div>
@@ -72,23 +75,86 @@ export default async function DashboardPage({
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[420px_1fr]">
           <section className="rounded-3xl bg-white p-6 shadow-sm">
-            <h2 className="text-2xl font-semibold">Add a network</h2>
+            <h2 className="text-2xl font-semibold">Add a site profile</h2>
             <p className="mt-2 text-sm text-slate-600">
-              Save the GHL variables, blog ID, and topic strategy for one
-              website.
+              Save the website profile, location, author, and blog strategy for
+              one Vercel site.
             </p>
 
             <form action={createNetworkAction} className="mt-6 space-y-4">
-              <TextInput label="Network name" name="name" required />
-              <TextInput label="GHL API token" name="apiToken" required />
+              <TextInput label="Site name" name="name" required />
               <TextInput
-                label="GHL blog ID"
-                name="blogId"
-                placeholder="Blog site ID from GHL"
-                required
+                label="Site slug"
+                name="slug"
+                placeholder="fairless-hills-chiropractor"
               />
-              <TextInput label="GHL location ID" name="ghlLocationId" />
-              <TextInput label="GHL company ID" name="ghlCompanyId" />
+              <TextInput
+                label="Domain"
+                name="domain"
+                placeholder="fairlesshillschiropractor.com"
+              />
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">
+                  Platform
+                </span>
+                <select
+                  name="platform"
+                  defaultValue="vercel"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                >
+                  <option value="vercel">Vercel / Towncrier API</option>
+                  <option value="ghl">Legacy GHL blog</option>
+                  <option value="wordpress">WordPress (future)</option>
+                </select>
+              </label>
+              <TextInput label="Location name" name="locationName" />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <TextInput label="City" name="city" />
+                <TextInput label="State" name="state" />
+              </div>
+              <TextInput
+                label="Service area"
+                name="serviceArea"
+                placeholder="Fairless Hills, Levittown, Yardley, Bristol"
+              />
+              <TextInput label="Author name" name="authorName" />
+              <TextInput label="Author title" name="authorTitle" />
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">
+                  Author bio
+                </span>
+                <textarea
+                  name="authorBio"
+                  rows={3}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                />
+              </label>
+              <TextInput label="Author image URL" name="authorImageUrl" />
+              <TextInput
+                label="Optional site API key"
+                name="siteApiKey"
+                placeholder="Use the same value in the Vercel site env"
+              />
+              <TextInput
+                label="Vercel revalidate URL"
+                name="revalidateUrl"
+                placeholder="https://example.com/api/revalidate"
+              />
+              <TextInput
+                label="Vercel revalidate secret"
+                name="revalidateSecret"
+              />
+              <details className="rounded-2xl bg-slate-50 p-4">
+                <summary className="cursor-pointer font-semibold">
+                  Legacy GHL settings
+                </summary>
+                <div className="mt-4 space-y-4">
+                  <TextInput label="GHL API token" name="apiToken" />
+                  <TextInput label="GHL blog ID" name="blogId" />
+                  <TextInput label="GHL location ID" name="ghlLocationId" />
+                  <TextInput label="GHL company ID" name="ghlCompanyId" />
+                </div>
+              </details>
               <label className="block">
                 <span className="text-sm font-medium text-slate-700">
                   Default topic
@@ -161,13 +227,14 @@ export default async function DashboardPage({
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
-                        {network.status}
+                        {network.platform} / {network.status}
                       </p>
                       <h2 className="mt-2 text-3xl font-semibold">
                         {network.name}
                       </h2>
                       <p className="mt-2 text-sm text-slate-600">
-                        Blog ID: {network.blogConfig?.blogId ?? "missing"}
+                        Site slug: {network.slug}
+                        {network.domain ? ` / ${network.domain}` : ""}
                       </p>
                     </div>
                     <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
@@ -190,33 +257,132 @@ export default async function DashboardPage({
                         value={network.id}
                       />
                       <TextInput
-                        label="Network name"
+                        label="Site name"
                         name="name"
                         defaultValue={network.name}
                         required
                       />
                       <TextInput
-                        label="New GHL API token"
-                        name="apiToken"
-                        placeholder="Leave blank to keep current token"
-                      />
-                      <TextInput
-                        label="GHL blog ID"
-                        name="blogId"
-                        defaultValue={network.blogConfig?.blogId ?? ""}
-                        placeholder="Blog site ID from GHL"
+                        label="Site slug"
+                        name="slug"
+                        defaultValue={network.slug}
                         required
                       />
                       <TextInput
-                        label="GHL location ID"
-                        name="ghlLocationId"
-                        defaultValue={network.ghlLocationId ?? ""}
+                        label="Domain"
+                        name="domain"
+                        defaultValue={network.domain ?? ""}
+                      />
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">
+                          Platform
+                        </span>
+                        <select
+                          name="platform"
+                          defaultValue={network.platform}
+                          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                        >
+                          <option value="vercel">Vercel / Towncrier API</option>
+                          <option value="ghl">Legacy GHL blog</option>
+                          <option value="wordpress">WordPress (future)</option>
+                        </select>
+                      </label>
+                      <TextInput
+                        label="Location name"
+                        name="locationName"
+                        defaultValue={network.locationName ?? ""}
                       />
                       <TextInput
-                        label="GHL company ID"
-                        name="ghlCompanyId"
-                        defaultValue={network.ghlCompanyId ?? ""}
+                        label="City"
+                        name="city"
+                        defaultValue={network.city ?? ""}
                       />
+                      <TextInput
+                        label="State"
+                        name="state"
+                        defaultValue={network.state ?? ""}
+                      />
+                      <TextInput
+                        label="Service area"
+                        name="serviceArea"
+                        defaultValue={network.serviceArea ?? ""}
+                      />
+                      <TextInput
+                        label="Author name"
+                        name="authorName"
+                        defaultValue={network.authorName ?? ""}
+                      />
+                      <TextInput
+                        label="Author title"
+                        name="authorTitle"
+                        defaultValue={network.authorTitle ?? ""}
+                      />
+                      <TextInput
+                        label="Author image URL"
+                        name="authorImageUrl"
+                        defaultValue={network.authorImageUrl ?? ""}
+                      />
+                      <TextInput
+                        label="New site API key"
+                        name="siteApiKey"
+                        placeholder={
+                          network.siteApiKeyHint
+                            ? `Current key ends ${network.siteApiKeyHint}`
+                            : "Optional"
+                        }
+                      />
+                      <TextInput
+                        label="Vercel revalidate URL"
+                        name="revalidateUrl"
+                        defaultValue={network.revalidateUrl ?? ""}
+                      />
+                      <TextInput
+                        label="Vercel revalidate secret"
+                        name="revalidateSecret"
+                        placeholder={
+                          network.revalidateSecret
+                            ? "Leave blank to clear or rotate"
+                            : "Optional"
+                        }
+                      />
+                      <label className="block md:col-span-2">
+                        <span className="text-sm font-medium text-slate-700">
+                          Author bio
+                        </span>
+                        <textarea
+                          name="authorBio"
+                          rows={3}
+                          defaultValue={network.authorBio ?? ""}
+                          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                        />
+                      </label>
+                      <details className="md:col-span-2 rounded-2xl bg-white p-4">
+                        <summary className="cursor-pointer font-semibold">
+                          Legacy GHL settings
+                        </summary>
+                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                          <TextInput
+                            label="New GHL API token"
+                            name="apiToken"
+                            placeholder="Leave blank to keep current token"
+                          />
+                          <TextInput
+                            label="GHL blog ID"
+                            name="blogId"
+                            defaultValue={network.blogConfig?.blogId ?? ""}
+                          />
+                          <TextInput
+                            label="GHL location ID"
+                            name="ghlLocationId"
+                            defaultValue={network.ghlLocationId ?? ""}
+                          />
+                          <TextInput
+                            label="GHL company ID"
+                            name="ghlCompanyId"
+                            defaultValue={network.ghlCompanyId ?? ""}
+                          />
+                        </div>
+                      </details>
                       <TextInput
                         label="Image style"
                         name="imageStyle"
@@ -274,6 +440,26 @@ export default async function DashboardPage({
                         Save network settings
                       </button>
                     </form>
+                  </details>
+
+                  <details className="mt-6 rounded-2xl bg-slate-950 p-4 text-white">
+                    <summary className="cursor-pointer font-semibold">
+                      Site API setup
+                    </summary>
+                    <div className="mt-4 space-y-3 text-sm">
+                      <p className="text-slate-300">
+                        Add these values to the matching Vercel website.
+                      </p>
+                      <pre className="overflow-x-auto rounded-2xl bg-black/30 p-4 text-xs text-cyan-100">
+{`TOWNCRIER_API_URL=${appUrl}
+TOWNCRIER_SITE_SLUG=${network.slug}
+TOWNCRIER_SITE_API_KEY=${network.siteApiKeyHint ? "<use the key you entered>" : "<optional for published posts>"}
+TOWNCRIER_REVALIDATE_SECRET=${network.revalidateSecret ? "<configured>" : "<optional>"}`}
+                      </pre>
+                      <p className="break-all text-slate-300">
+                        Posts API: {appUrl}/api/v1/sites/{network.slug}/posts
+                      </p>
+                    </div>
                   </details>
 
                   <div className="mt-6 rounded-2xl bg-slate-50 p-4">
@@ -398,10 +584,34 @@ export default async function DashboardPage({
                                   defaultValue={post.categories.join(", ")}
                                 />
                                 <TextInput
+                                  label="SEO title"
+                                  name="seoTitle"
+                                  defaultValue={post.seoTitle ?? post.title}
+                                />
+                                <TextInput
+                                  label="SEO description"
+                                  name="seoDescription"
+                                  defaultValue={
+                                    post.seoDescription ?? post.excerpt
+                                  }
+                                />
+                                <TextInput
+                                  label="Canonical URL"
+                                  name="canonicalUrl"
+                                  defaultValue={post.canonicalUrl ?? ""}
+                                />
+                                <TextInput
                                   label="Image URL"
                                   name="imageUrl"
                                   defaultValue={post.imageUrl ?? ""}
                                   placeholder="https://example.com/image.jpg"
+                                />
+                                <TextInput
+                                  label="Featured image alt"
+                                  name="featuredImageAlt"
+                                  defaultValue={
+                                    post.featuredImageAlt ?? post.title
+                                  }
                                 />
                                 <label className="block">
                                   <span className="text-sm font-medium text-slate-700">

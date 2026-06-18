@@ -18,6 +18,12 @@ enum BlogPostStatus {
   failed
 }
 
+enum PublishPlatform {
+  vercel
+  ghl
+  wordpress
+}
+
 model User {
   id           String    @id @default(cuid())
   email        String    @unique
@@ -29,16 +35,31 @@ model User {
 }
 
 model Network {
-  id                         String        @id @default(cuid())
+  id                         String          @id @default(cuid())
   ownerId                    String
   name                       String
+  slug                       String          @unique @default(cuid())
+  domain                     String?
+  platform                   PublishPlatform @default(vercel)
+  locationName               String?
+  city                       String?
+  state                      String?
+  serviceArea                String?
+  authorName                 String?
+  authorTitle                String?
+  authorBio                  String?
+  authorImageUrl             String?
+  siteApiKeyHash             String?
+  siteApiKeyHint             String?
+  revalidateUrl              String?
+  revalidateSecret           String?
   ghlLocationId              String?
   ghlCompanyId               String?
-  credentialType             String        @default("manual")
-  encryptedCredentialPayload String
-  status                     NetworkStatus @default(active)
-  createdAt                  DateTime      @default(now())
-  updatedAt                  DateTime      @updatedAt
+  credentialType             String          @default("manual")
+  encryptedCredentialPayload String?
+  status                     NetworkStatus   @default(active)
+  createdAt                  DateTime        @default(now())
+  updatedAt                  DateTime        @updatedAt
 
   owner      User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   blogConfig BlogConfig?
@@ -48,40 +69,48 @@ model Network {
 }
 
 model BlogConfig {
-  id          String   @id @default(cuid())
-  networkId   String   @unique
-  blogId      String
+  id           String   @id @default(cuid())
+  networkId    String   @unique
+  blogId       String?
   defaultTopic String
-  categories  String[]
-  postingDays String[]
-  imageStyle  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  categories   String[]
+  postingDays  String[]
+  imageStyle   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   network Network @relation(fields: [networkId], references: [id], onDelete: Cascade)
 }
 
 model BlogPost {
-  id              String         @id @default(cuid())
-  networkId       String
-  topic           String
-  title           String
-  slug            String
-  excerpt         String
-  bodyMarkdown    String
-  categories      String[]
-  imagePrompt     String?
-  imageUrl        String?
-  status          BlogPostStatus @default(draft)
-  ghlPostId       String?
-  publishResponse Json?
-  errorMessage    String?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  publishedAt     DateTime?
+  id               String         @id @default(cuid())
+  networkId        String
+  topic            String
+  title            String
+  slug             String
+  excerpt          String
+  bodyMarkdown     String
+  bodyHtml         String?
+  categories       String[]
+  seoTitle         String?
+  seoDescription   String?
+  canonicalUrl     String?
+  imagePrompt      String?
+  imageUrl         String?
+  featuredImageAlt String?
+  status           BlogPostStatus @default(draft)
+  ghlPostId        String?
+  externalPostId   String?
+  publishedTo      String?
+  publishResponse  Json?
+  errorMessage     String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  publishedAt      DateTime?
 
   network Network @relation(fields: [networkId], references: [id], onDelete: Cascade)
 
+  @@unique([networkId, slug])
   @@index([networkId])
   @@index([status])
 }
