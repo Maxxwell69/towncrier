@@ -622,7 +622,8 @@ TOWNCRIER_REVALIDATE_SECRET=${network.revalidateSecret ? "<configured>" : "<opti
                     <h3 className="font-semibold">Generate next blog</h3>
                     <p className="mt-1 text-sm text-slate-600">
                       Draft generation can take 20-60 seconds while Claude
-                      writes the post.
+                      writes the post. If Pexels is configured, Towncrier will
+                      automatically attach a featured image.
                     </p>
                     <form
                       action={generatePostAction}
@@ -650,6 +651,10 @@ TOWNCRIER_REVALIDATE_SECRET=${network.revalidateSecret ? "<configured>" : "<opti
                     <summary className="cursor-pointer font-semibold">
                       Submit your own blog copy
                     </summary>
+                    <p className="mt-2 text-sm text-slate-600">
+                      If you leave Image URL blank, Towncrier will try to find a
+                      Pexels image automatically.
+                    </p>
                     <form
                       action={createManualPostAction}
                       className="mt-4 space-y-4"

@@ -191,6 +191,52 @@ async function getOwnedNetwork(networkId: string, ownerId: string) {
   });
 }
 
+async function attachAutomaticPexelsImage(input: {
+  postId: string;
+  query: string;
+  fallbackAlt: string;
+}) {
+  try {
+    const candidates = await searchPexelsImages(input.query);
+    const usableCandidates = candidates.filter((candidate) => candidate.imageUrl);
+    const selected = usableCandidates[0];
+
+    if (!selected) {
+      return;
+    }
+
+    await prisma.$transaction([
+      prisma.imageCandidate.deleteMany({
+        where: { postId: input.postId },
+      }),
+      prisma.imageCandidate.createMany({
+        data: usableCandidates.map((candidate) => ({
+          postId: input.postId,
+          imageUrl: candidate.imageUrl,
+          photographer: candidate.photographer,
+          photographerUrl: candidate.photographerUrl,
+          sourceUrl: candidate.sourceUrl,
+          altText: candidate.altText,
+        })),
+      }),
+      prisma.blogPost.update({
+        where: { id: input.postId },
+        data: {
+          imageUrl: selected.imageUrl,
+          featuredImageAlt: selected.altText || input.fallbackAlt,
+          imageProvider: "pexels",
+          imageCredit: selected.photographer
+            ? `Photo by ${selected.photographer} on Pexels`
+            : "Photo from Pexels",
+          imageSourceUrl: selected.sourceUrl,
+        },
+      }),
+    ]);
+  } catch (error) {
+    console.warn("Automatic Pexels image search skipped", error);
+  }
+}
+
 async function createDraftFromClaude(input: {
   network: NonNullable<Awaited<ReturnType<typeof getOwnedNetwork>>>;
   topic: string;
@@ -239,7 +285,7 @@ async function createDraftFromClaude(input: {
   );
   const bodyHtml = markdownToHtml(draft.bodyMarkdown);
 
-  return prisma.blogPost.create({
+  const post = await prisma.blogPost.create({
     data: {
       networkId: input.network.id,
       topicId: input.topicId,
@@ -257,6 +303,14 @@ async function createDraftFromClaude(input: {
       source: input.source,
     },
   });
+
+  await attachAutomaticPexelsImage({
+    postId: post.id,
+    query: draft.imagePrompt || input.topic || draft.title,
+    fallbackAlt: draft.title,
+  });
+
+  return post;
 }
 
 export async function createNetworkAction(formData: FormData) {
@@ -639,7 +693,7 @@ export async function createManualPostAction(formData: FormData) {
   );
   const bodyHtml = markdownToHtml(parsed.bodyMarkdown);
 
-  await prisma.blogPost.create({
+  const post = await prisma.blogPost.create({
     data: {
       networkId: network.id,
       topic: parsed.title,
@@ -660,6 +714,14 @@ export async function createManualPostAction(formData: FormData) {
       scheduledFor: parsed.scheduledFor ? new Date(parsed.scheduledFor) : null,
     },
   });
+
+  if (!parsed.imageUrl) {
+    await attachAutomaticPexelsImage({
+      postId: post.id,
+      query: parsed.imagePrompt || parsed.title,
+      fallbackAlt: parsed.featuredImageAlt || parsed.title,
+    });
+  }
 
   revalidatePath("/dashboard");
   redirect("/dashboard");
