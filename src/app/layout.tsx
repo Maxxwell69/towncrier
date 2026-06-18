@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Towncrier",
-  description: "Automated blog publishing for GoHighLevel websites.",
+  title: "Twncrier",
+  description:
+    "AI blog operations for Vercel-hosted local website networks.",
 };
 
 export default function RootLayout({

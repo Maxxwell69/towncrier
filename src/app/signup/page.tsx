@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { loginAction } from "@/app/actions/auth";
+import { signupAction } from "@/app/actions/auth";
+import { SubmitButton } from "@/components/submit-button";
 import { getCurrentUser } from "@/lib/auth";
 
-type LoginPageProps = {
+type SignupPageProps = {
   searchParams: Promise<{
     error?: string;
   }>;
 };
 
-export default async function LoginPage({ searchParams }: LoginPageProps) {
+export default async function SignupPage({ searchParams }: SignupPageProps) {
   const user = await getCurrentUser();
   const { error } = await searchParams;
 
@@ -24,19 +25,20 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <Link href="/" className="text-sm font-semibold text-cyan-300">
           Twncrier
         </Link>
-        <h1 className="mt-6 text-3xl font-semibold">Log in</h1>
+        <h1 className="mt-6 text-3xl font-semibold">Create your account</h1>
         <p className="mt-2 text-sm text-slate-300">
-          Manage your site profiles, topic queues, image workflow, and Vercel
-          blog publishing.
+          Start building a central autoblog hub for your Vercel site network.
         </p>
 
         {error ? (
           <div className="mt-6 rounded-2xl border border-red-300/40 bg-red-500/10 p-4 text-sm text-red-100">
-            Please check your email and password.
+            {error === "exists"
+              ? "That email already has an account. Try logging in."
+              : "Use a valid email and a password of at least 8 characters."}
           </div>
         ) : null}
 
-        <form action={loginAction} className="mt-8 space-y-5">
+        <form action={signupAction} className="mt-8 space-y-5">
           <label className="block">
             <span className="text-sm font-medium text-slate-200">Email</span>
             <input
@@ -44,7 +46,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               type="email"
               name="email"
               className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none ring-cyan-300 transition focus:ring-2"
-              placeholder="admin@towncrier.local"
+              placeholder="you@example.com"
             />
           </label>
 
@@ -54,25 +56,26 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </span>
             <input
               required
+              minLength={8}
               type="password"
               name="password"
               className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none ring-cyan-300 transition focus:ring-2"
-              placeholder="ChangeMe123!"
+              placeholder="At least 8 characters"
             />
           </label>
 
-          <button
-            type="submit"
+          <SubmitButton
             className="w-full rounded-2xl bg-cyan-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-200"
+            pendingText="Creating account..."
           >
-            Log in
-          </button>
+            Create account
+          </SubmitButton>
         </form>
 
         <p className="mt-6 text-center text-sm text-slate-300">
-          Need an account?{" "}
-          <Link href="/signup" className="font-semibold text-cyan-300">
-            Sign up
+          Already have an account?{" "}
+          <Link href="/login" className="font-semibold text-cyan-300">
+            Log in
           </Link>
         </p>
       </section>
