@@ -130,13 +130,15 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  revalidatePath("/blog");
+  const paths = Array.isArray(body?.paths)
+    ? body.paths
+    : ["/blog", body?.path].filter(Boolean);
 
-  if (body?.path) {
-    revalidatePath(body.path);
+  for (const path of paths) {
+    revalidatePath(path);
   }
 
-  return Response.json({ revalidated: true });
+  return Response.json({ revalidated: true, paths });
 }
 ```
 

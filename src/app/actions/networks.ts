@@ -166,6 +166,7 @@ async function revalidateVercelSite(input: {
     },
     body: JSON.stringify({
       path: `/blog/${input.slug}`,
+      paths: ["/blog", `/blog/${input.slug}`],
       slug: input.slug,
     }),
   });
@@ -177,6 +178,26 @@ async function revalidateVercelSite(input: {
     status: response.status,
     body: text,
   };
+}
+
+async function revalidatePublishedPost(post: {
+  slug: string;
+  status: string;
+  network?: {
+    platform: string;
+    revalidateUrl?: string | null;
+    revalidateSecret?: string | null;
+  };
+}) {
+  if (post.status !== "published" || post.network?.platform === "ghl") {
+    return;
+  }
+
+  await revalidateVercelSite({
+    revalidateUrl: post.network?.revalidateUrl,
+    revalidateSecret: post.network?.revalidateSecret,
+    slug: post.slug,
+  });
 }
 
 async function getOwnedNetwork(networkId: string, ownerId: string) {
@@ -750,6 +771,9 @@ export async function updateDraftAction(formData: FormData) {
         ownerId: user.id,
       },
     },
+    include: {
+      network: true,
+    },
   });
 
   if (!post) {
@@ -815,6 +839,8 @@ export async function deletePostAction(formData: FormData) {
   await prisma.blogPost.delete({
     where: { id: post.id },
   });
+
+  await revalidatePublishedPost(post);
 
   revalidatePath("/dashboard");
   redirect("/dashboard");
@@ -887,7 +913,11 @@ export async function applyImageCandidateAction(formData: FormData) {
       },
     },
     include: {
-      post: true,
+      post: {
+        include: {
+          network: true,
+        },
+      },
     },
   });
 
@@ -907,6 +937,8 @@ export async function applyImageCandidateAction(formData: FormData) {
       imageSourceUrl: candidate.sourceUrl,
     },
   });
+
+  await revalidatePublishedPost(candidate.post);
 
   revalidatePath("/dashboard");
   redirect("/dashboard");
