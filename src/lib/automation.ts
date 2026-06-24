@@ -106,6 +106,7 @@ export type AutomationNetwork = {
     categories: string[];
     postingDays: string[];
     postingTime: string;
+    timezone: string;
     imageStyle: string | null;
     automationEnabled: boolean;
     autoPublishEnabled: boolean;
@@ -125,13 +126,13 @@ export type RunResult = {
 };
 
 /**
- * Find all active networks that have automation enabled and whose postingDays
- * list includes today (or have no restriction if the list is empty).
+ * Returns all active networks that have automation enabled.
+ * Day/hour/timezone filtering is done per-network in the scheduler.
  */
 export async function getNetworksScheduledForToday(): Promise<
   AutomationNetwork[]
 > {
-  const networks = await prisma.network.findMany({
+  return prisma.network.findMany({
     where: {
       status: "active",
       blogConfig: {
@@ -139,14 +140,6 @@ export async function getNetworksScheduledForToday(): Promise<
       },
     },
     include: { blogConfig: true },
-  });
-
-  const today = todayDayName();
-
-  return networks.filter((n) => {
-    const days = n.blogConfig?.postingDays ?? [];
-    // If no days are configured, run every day.
-    return days.length === 0 || days.map((d) => d.toLowerCase()).includes(today);
   });
 }
 

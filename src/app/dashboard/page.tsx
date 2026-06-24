@@ -28,6 +28,29 @@ const postingDays = [
   "Sunday",
 ];
 
+const timezones = [
+  { label: "Eastern Time (New York)", value: "America/New_York" },
+  { label: "Central Time (Chicago)", value: "America/Chicago" },
+  { label: "Mountain Time (Denver)", value: "America/Denver" },
+  { label: "Mountain Time (Phoenix, no DST)", value: "America/Phoenix" },
+  { label: "Pacific Time (Los Angeles)", value: "America/Los_Angeles" },
+  { label: "Alaska Time (Anchorage)", value: "America/Anchorage" },
+  { label: "Hawaii Time (Honolulu)", value: "Pacific/Honolulu" },
+  { label: "Atlantic Time (Halifax)", value: "America/Halifax" },
+  { label: "UTC", value: "UTC" },
+  { label: "London (GMT/BST)", value: "Europe/London" },
+  { label: "Central Europe (Paris/Berlin)", value: "Europe/Paris" },
+  { label: "Eastern Europe (Athens/Helsinki)", value: "Europe/Athens" },
+  { label: "Moscow", value: "Europe/Moscow" },
+  { label: "India (Mumbai)", value: "Asia/Kolkata" },
+  { label: "Singapore / Philippines", value: "Asia/Singapore" },
+  { label: "Japan / Korea", value: "Asia/Tokyo" },
+  { label: "Australia Eastern (Sydney)", value: "Australia/Sydney" },
+  { label: "Australia Central (Adelaide)", value: "Australia/Adelaide" },
+  { label: "Australia Western (Perth)", value: "Australia/Perth" },
+  { label: "New Zealand (Auckland)", value: "Pacific/Auckland" },
+];
+
 type DashboardPageProps = {
   searchParams: Promise<{
     error?: string;
@@ -228,20 +251,35 @@ export default async function DashboardPage({
                 </p>
               </fieldset>
 
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">
-                  Posting time (UTC)
-                </span>
-                <input
-                  type="time"
-                  name="postingTime"
-                  defaultValue="08:00"
-                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
-                />
-                <p className="mt-1 text-xs text-slate-500">
-                  Time is in UTC. Railway servers run on UTC.
-                </p>
-              </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">
+                    Posting time
+                  </span>
+                  <input
+                    type="time"
+                    name="postingTime"
+                    defaultValue="08:00"
+                    className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">
+                    Time zone
+                  </span>
+                  <select
+                    name="timezone"
+                    defaultValue="America/New_York"
+                    className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                  >
+                    {timezones.map((tz) => (
+                      <option key={tz.value} value={tz.value}>
+                        {tz.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
 
               <fieldset className="rounded-2xl bg-slate-50 p-4">
                 <legend className="text-sm font-semibold text-slate-800">
@@ -505,22 +543,40 @@ export default async function DashboardPage({
                           Leave all unchecked to post every day.
                         </p>
                       </fieldset>
-                      <label className="block">
-                        <span className="text-sm font-medium text-slate-700">
-                          Posting time (UTC)
-                        </span>
-                        <input
-                          type="time"
-                          name="postingTime"
-                          defaultValue={
-                            network.blogConfig?.postingTime ?? "08:00"
-                          }
-                          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
-                        />
-                        <p className="mt-1 text-xs text-slate-500">
-                          Railway servers run on UTC.
-                        </p>
-                      </label>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="block">
+                          <span className="text-sm font-medium text-slate-700">
+                            Posting time
+                          </span>
+                          <input
+                            type="time"
+                            name="postingTime"
+                            defaultValue={
+                              network.blogConfig?.postingTime ?? "08:00"
+                            }
+                            className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-sm font-medium text-slate-700">
+                            Time zone
+                          </span>
+                          <select
+                            name="timezone"
+                            defaultValue={
+                              network.blogConfig?.timezone ??
+                              "America/New_York"
+                            }
+                            className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                          >
+                            {timezones.map((tz) => (
+                              <option key={tz.value} value={tz.value}>
+                                {tz.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
                       <fieldset className="rounded-2xl bg-white p-4 md:col-span-2">
                         <legend className="text-sm font-semibold text-slate-800">
                           Automation

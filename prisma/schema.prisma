@@ -108,6 +108,7 @@ model BlogConfig {
   categories         String[]
   postingDays        String[]
   postingTime        String    @default("08:00")
+  timezone           String    @default("America/New_York")
   imageStyle         String?
   automationEnabled  Boolean   @default(false)
   autoPublishEnabled Boolean   @default(false)

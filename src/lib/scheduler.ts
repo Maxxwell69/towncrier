@@ -5,58 +5,116 @@
  * Every 5 minutes it checks all active site profiles and fires the automation
  * for any that:
  *   1. Have automationEnabled = true
- *   2. Have their posting day set to today (or no specific days = every day)
- *   3. Have their postingTime hour matching the current hour (UTC)
- *   4. Have not already run today (lastAutoRunDate is not today)
+ *   2. Have their posting day set to today in their local timezone
+ *      (or no days configured = every day)
+ *   3. Have their postingTime hour matching the current hour in their timezone
+ *   4. Have not already run today in their local timezone
  */
 
 import {
   getNetworksScheduledForToday,
   runAutomationForNetwork,
-  todayDayName,
 } from "@/lib/automation";
 import { prisma } from "@/lib/db";
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000; // check every 5 minutes
 
-function currentHourUTC() {
-  return new Date().getUTCHours();
-}
+const DAY_NAMES = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+];
 
-function todayDateStringUTC() {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+/**
+ * Returns the current hour (0–23) and day name in the given IANA timezone.
+ * Falls back to UTC if the timezone string is invalid.
+ */
+function localTimeFor(timezone: string): { hour: number; day: string; dateStr: string } {
+  let tz = timezone;
+  try {
+    // Validate the timezone — throws RangeError if unknown.
+    Intl.DateTimeFormat("en-US", { timeZone: tz });
+  } catch {
+    console.warn(`[scheduler] Unknown timezone "${tz}", falling back to UTC`);
+    tz = "UTC";
+  }
+
+  const now = new Date();
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hour: "numeric",
+    weekday: "long",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+
+  const hourRaw = parseInt(get("hour"), 10);
+  // Intl uses 24 for midnight in some locales — normalise to 0.
+  const hour = hourRaw === 24 ? 0 : hourRaw;
+  const weekday = get("weekday").toLowerCase();
+  const day = DAY_NAMES.includes(weekday) ? weekday : DAY_NAMES[new Date().getDay()];
+
+  const month = get("month");
+  const dayOfMonth = get("day");
+  const year = get("year");
+  const dateStr = `${year}-${month}-${dayOfMonth}`;
+
+  return { hour, day, dateStr };
 }
 
 async function runSchedulerTick() {
-  const day = todayDayName();
-  const hourUTC = currentHourUTC();
-  const todayStr = todayDateStringUTC();
-
   const networks = await getNetworksScheduledForToday();
 
   for (const network of networks) {
     const config = network.blogConfig;
     if (!config) continue;
 
-    // Parse the configured posting hour (stored as "HH:MM" in UTC).
-    const [postHour] = (config.postingTime ?? "08:00").split(":").map(Number);
+    const timezone = config.timezone ?? "America/New_York";
+    const { hour, day, dateStr } = localTimeFor(timezone);
 
-    if (postHour !== hourUTC) {
+    // Check posting days in local timezone.
+    const days = config.postingDays ?? [];
+    if (days.length > 0 && !days.map((d) => d.toLowerCase()).includes(day)) {
       continue;
     }
 
-    // Check lastAutoRunDate — skip if we already ran for this network today.
+    // Check posting hour in local timezone.
+    const [postHour] = (config.postingTime ?? "08:00").split(":").map(Number);
+    if (postHour !== hour) {
+      continue;
+    }
+
+    // Check lastAutoRunDate — skip if already ran today in local timezone.
     const dbConfig = await prisma.blogConfig.findUnique({
       where: { networkId: network.id },
       select: { lastAutoRunDate: true },
     });
 
     if (dbConfig?.lastAutoRunDate) {
-      const lastRunStr = dbConfig.lastAutoRunDate.toISOString().slice(0, 10);
-      if (lastRunStr === todayStr) {
+      const lastLocal = localTimeFor(timezone);
+      // Re-derive the date string from the stored timestamp in local tz.
+      const storedDate = new Date(dbConfig.lastAutoRunDate);
+      const storedDateStr = new Intl.DateTimeFormat("en-US", {
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      })
+        .format(storedDate)
+        .replace(/(\d+)\/(\d+)\/(\d+)/, "$3-$1-$2");
+
+      if (storedDateStr === dateStr) {
         console.log(
-          `[scheduler] ${network.name} already ran today — skipping`,
+          `[scheduler] "${network.name}" already ran today (${timezone}) — skipping`,
         );
         continue;
       }
@@ -69,15 +127,18 @@ async function runSchedulerTick() {
     });
 
     console.log(
-      `[scheduler] Running automation for "${network.name}" (day=${day}, hour=${hourUTC}UTC)`,
+      `[scheduler] Running automation for "${network.name}" (${timezone} — ${day} ${postHour}:00)`,
     );
 
     runAutomationForNetwork(network)
       .then((result) => {
-        console.log(`[scheduler] Done — ${network.name}:`, JSON.stringify(result));
+        console.log(
+          `[scheduler] Done — "${network.name}":`,
+          JSON.stringify(result),
+        );
       })
       .catch((err) => {
-        console.error(`[scheduler] Error — ${network.name}:`, err);
+        console.error(`[scheduler] Error — "${network.name}":`, err);
       });
   }
 }
