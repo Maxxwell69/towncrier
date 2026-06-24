@@ -210,7 +210,7 @@ export default async function DashboardPage({
 
               <fieldset>
                 <legend className="text-sm font-medium text-slate-700">
-                  Future posting days
+                  Posting days
                 </legend>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {postingDays.map((day) => (
@@ -223,7 +223,25 @@ export default async function DashboardPage({
                     </label>
                   ))}
                 </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Leave all unchecked to post every day.
+                </p>
               </fieldset>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">
+                  Posting time (UTC)
+                </span>
+                <input
+                  type="time"
+                  name="postingTime"
+                  defaultValue="08:00"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Time is in UTC. Railway servers run on UTC.
+                </p>
+              </label>
 
               <fieldset className="rounded-2xl bg-slate-50 p-4">
                 <legend className="text-sm font-semibold text-slate-800">
@@ -463,7 +481,7 @@ export default async function DashboardPage({
                       </label>
                       <fieldset className="md:col-span-2">
                         <legend className="text-sm font-medium text-slate-700">
-                          Future posting days
+                          Posting days
                         </legend>
                         <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
                           {postingDays.map((day) => (
@@ -483,7 +501,26 @@ export default async function DashboardPage({
                             </label>
                           ))}
                         </div>
+                        <p className="mt-2 text-xs text-slate-500">
+                          Leave all unchecked to post every day.
+                        </p>
                       </fieldset>
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">
+                          Posting time (UTC)
+                        </span>
+                        <input
+                          type="time"
+                          name="postingTime"
+                          defaultValue={
+                            network.blogConfig?.postingTime ?? "08:00"
+                          }
+                          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                        />
+                        <p className="mt-1 text-xs text-slate-500">
+                          Railway servers run on UTC.
+                        </p>
+                      </label>
                       <fieldset className="rounded-2xl bg-white p-4 md:col-span-2">
                         <legend className="text-sm font-semibold text-slate-800">
                           Automation
@@ -512,8 +549,8 @@ export default async function DashboardPage({
                           />
                         </div>
                         <p className="mt-3 text-sm text-slate-500">
-                          When enabled, Claude-generated drafts can move through
-                          image selection and publication automatically.
+                          The scheduler runs inside the Railway process every 5
+                          minutes and fires at the configured posting time.
                         </p>
                       </fieldset>
                       <SubmitButton

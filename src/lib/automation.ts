@@ -105,10 +105,12 @@ export type AutomationNetwork = {
     defaultTopic: string;
     categories: string[];
     postingDays: string[];
+    postingTime: string;
     imageStyle: string | null;
     automationEnabled: boolean;
     autoPublishEnabled: boolean;
     autoImageEnabled: boolean;
+    lastAutoRunDate: Date | null;
   } | null;
 };
 

@@ -101,18 +101,20 @@ model Topic {
 }
 
 model BlogConfig {
-  id                 String   @id @default(cuid())
-  networkId          String   @unique
+  id                 String    @id @default(cuid())
+  networkId          String    @unique
   blogId             String?
   defaultTopic       String
   categories         String[]
   postingDays        String[]
+  postingTime        String    @default("08:00")
   imageStyle         String?
-  automationEnabled  Boolean  @default(false)
-  autoPublishEnabled Boolean  @default(false)
-  autoImageEnabled   Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  automationEnabled  Boolean   @default(false)
+  autoPublishEnabled Boolean   @default(false)
+  autoImageEnabled   Boolean   @default(true)
+  lastAutoRunDate    DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   network Network @relation(fields: [networkId], references: [id], onDelete: Cascade)
 }
