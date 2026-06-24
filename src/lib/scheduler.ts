@@ -93,28 +93,40 @@ async function runSchedulerTick() {
       continue;
     }
 
-    // Check lastAutoRunDate — skip if already ran today in local timezone.
+    // Check lastAutoRunDate — skip only if we already ran in THIS exact
+    // hour-slot today (same date + same hour in the site's timezone).
+    // Different hours on the same day are independent slots, so multiple
+    // posting times per day work, and changing the time re-enables a run.
     const dbConfig = await prisma.blogConfig.findUnique({
       where: { networkId: network.id },
       select: { lastAutoRunDate: true },
     });
 
     if (dbConfig?.lastAutoRunDate) {
-      const lastLocal = localTimeFor(timezone);
-      // Re-derive the date string from the stored timestamp in local tz.
-      const storedDate = new Date(dbConfig.lastAutoRunDate);
+      const stored = new Date(dbConfig.lastAutoRunDate);
+
       const storedDateStr = new Intl.DateTimeFormat("en-US", {
         timeZone: timezone,
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
       })
-        .format(storedDate)
+        .format(stored)
         .replace(/(\d+)\/(\d+)\/(\d+)/, "$3-$1-$2");
 
-      if (storedDateStr === dateStr) {
+      const storedHourRaw = parseInt(
+        new Intl.DateTimeFormat("en-US", {
+          timeZone: timezone,
+          hour: "numeric",
+          hour12: false,
+        }).format(stored),
+        10,
+      );
+      const storedHour = storedHourRaw === 24 ? 0 : storedHourRaw;
+
+      if (storedDateStr === dateStr && storedHour === postHour) {
         console.log(
-          `[scheduler] "${network.name}" already ran today (${timezone}) — skipping`,
+          `[scheduler] "${network.name}" already ran for the ${postHour}:00 slot (${timezone}) — skipping`,
         );
         continue;
       }
