@@ -4,6 +4,8 @@
  * context so they can be called from /api/cron/run.
  */
 
+import type { Prisma } from "@prisma/client";
+
 import { generateBlogDraft } from "@/lib/claude";
 import { markdownToHtml, slugify } from "@/lib/content";
 import { prisma } from "@/lib/db";
@@ -330,7 +332,7 @@ export async function runAutomationForNetwork(
             publishResponse: {
               platform: "vercel",
               revalidate: revalidateResult,
-            },
+            } as Prisma.InputJsonValue,
           },
         });
       }
