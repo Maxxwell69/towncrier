@@ -289,19 +289,35 @@ export async function runAutomationForNetwork(
         const revalidateUrl = network.revalidateUrl;
         const revalidateSecret = network.revalidateSecret;
 
+        let revalidateResult: Record<string, unknown> = { skipped: true };
+
         if (revalidateUrl) {
-          await fetch(revalidateUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(revalidateSecret
-                ? { "x-revalidate-secret": revalidateSecret }
-                : {}),
-            },
-            body: JSON.stringify({ paths: [`/blog`, `/blog/${postSlug}`] }),
-          }).catch((e) =>
-            console.warn("[automation] Revalidate failed:", e.message),
-          );
+          try {
+            const res = await fetch(revalidateUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(revalidateSecret
+                  ? { Authorization: `Bearer ${revalidateSecret}` }
+                  : {}),
+              },
+              body: JSON.stringify({
+                paths: ["/blog", `/blog/${postSlug}`],
+                slug: postSlug,
+              }),
+            });
+            const body = await res.text();
+            revalidateResult = { ok: res.ok, status: res.status, body };
+            if (!res.ok) {
+              console.warn(
+                `[automation] Revalidation returned ${res.status} for "${network.name}": ${body}`,
+              );
+            }
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            revalidateResult = { ok: false, error: msg };
+            console.warn(`[automation] Revalidation fetch failed for "${network.name}": ${msg}`);
+          }
         }
 
         await prisma.blogPost.update({
@@ -311,6 +327,10 @@ export async function runAutomationForNetwork(
             externalPostId: post.id,
             publishedTo: "towncrier",
             publishedAt: new Date(),
+            publishResponse: {
+              platform: "vercel",
+              revalidate: revalidateResult,
+            },
           },
         });
       }

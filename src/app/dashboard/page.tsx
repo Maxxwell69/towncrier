@@ -10,6 +10,7 @@ import {
   generateNextTopicPostAction,
   generatePostAction,
   publishPostAction,
+  repushPostAction,
   toggleTopicAction,
   updateDraftAction,
   updateNetworkAction,
@@ -1135,6 +1136,23 @@ TOWNCRIER_REVALIDATE_SECRET=${network.revalidateSecret ? "<configured>" : "<opti
                                   pendingText="Publishing..."
                                 >
                                   Publish
+                                </SubmitButton>
+                              </form>
+                            ) : null}
+
+                            {post.status === "published" &&
+                            network.platform === "vercel" ? (
+                              <form action={repushPostAction}>
+                                <input
+                                  type="hidden"
+                                  name="postId"
+                                  value={post.id}
+                                />
+                                <SubmitButton
+                                  className="rounded-xl border border-cyan-300 px-4 py-2 text-sm font-semibold text-cyan-800 transition hover:bg-cyan-50"
+                                  pendingText="Pushing to site..."
+                                >
+                                  Re-push to site
                                 </SubmitButton>
                               </form>
                             ) : null}

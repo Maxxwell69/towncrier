@@ -1129,3 +1129,45 @@ export async function publishPostAction(formData: FormData) {
   revalidatePath("/dashboard");
   redirect("/dashboard");
 }
+
+export async function repushPostAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = publishSchema.parse({
+    postId: formData.get("postId"),
+  });
+
+  const post = await prisma.blogPost.findFirst({
+    where: {
+      id: parsed.postId,
+      status: "published",
+      network: { ownerId: user.id },
+    },
+    include: {
+      network: true,
+    },
+  });
+
+  if (!post) {
+    dashboardError("Published post not found.");
+  }
+
+  const result = await revalidateVercelSite({
+    revalidateUrl: post.network.revalidateUrl,
+    revalidateSecret: post.network.revalidateSecret,
+    slug: post.slug,
+  });
+
+  await prisma.blogPost.update({
+    where: { id: post.id },
+    data: {
+      publishResponse: {
+        platform: post.network.platform,
+        revalidate: result,
+        repushedAt: new Date().toISOString(),
+      } as Prisma.InputJsonValue,
+    },
+  });
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
