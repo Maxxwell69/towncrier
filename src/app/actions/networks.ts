@@ -13,8 +13,9 @@ import {
   markdownToHtml,
   slugify,
 } from "@/lib/content";
-import { encryptJson } from "@/lib/crypto";
+import { encryptJson, decryptJson } from "@/lib/crypto";
 import { prisma } from "@/lib/db";
+import { buildFacebookMessage, postToFacebookPage } from "@/lib/facebook";
 import { publishBlogPost } from "@/lib/ghl";
 import { searchPexelsImages } from "@/lib/pexels";
 
@@ -38,6 +39,9 @@ const networkSchema = z.object({
   ghlCompanyId: z.string().optional(),
   apiToken: z.string().optional(),
   blogId: z.string().optional(),
+  fbPageId: z.string().optional(),
+  fbPageToken: z.string().optional(),
+  fbAutoPost: z.boolean().default(false),
   defaultTopic: z.string().min(5),
   categories: z.string().optional(),
   postingDays: z.array(z.string()).default([]),
@@ -302,6 +306,38 @@ async function publishPostRecord(post: PublishablePost) {
         publishedAt: new Date(),
       },
     });
+
+    // Auto-post to Facebook if enabled and configured.
+    if (post.network.fbAutoPost && post.network.fbPageId && post.network.encryptedFbToken) {
+      try {
+        const { token } = decryptJson<{ token: string }>(
+          post.network.encryptedFbToken,
+        );
+        const blogUrl = post.network.domain
+          ? `https://${post.network.domain}/blog/${post.slug}`
+          : null;
+
+        if (blogUrl) {
+          const fbResult = await postToFacebookPage({
+            pageId: post.network.fbPageId,
+            pageAccessToken: token,
+            message: buildFacebookMessage({
+              title: post.title,
+              excerpt: post.excerpt,
+              url: blogUrl,
+            }),
+            link: blogUrl,
+          });
+
+          await prisma.blogPost.update({
+            where: { id: post.id },
+            data: { fbPostId: fbResult.id, fbPostedAt: new Date() },
+          });
+        }
+      } catch (fbError) {
+        console.error("[publish] Facebook auto-post failed:", fbError);
+      }
+    }
   } catch (error) {
     await prisma.blogPost.update({
       where: { id: post.id },
@@ -491,6 +527,9 @@ export async function createNetworkAction(formData: FormData) {
     ghlCompanyId: optionalString(formData.get("ghlCompanyId")),
     apiToken: optionalString(formData.get("apiToken")),
     blogId: optionalString(formData.get("blogId")),
+    fbPageId: optionalString(formData.get("fbPageId")),
+    fbPageToken: optionalString(formData.get("fbPageToken")),
+    fbAutoPost: checkboxValue(formData, "fbAutoPost"),
     defaultTopic: formData.get("defaultTopic"),
     categories: optionalString(formData.get("categories")),
     postingDays: formData.getAll("postingDays"),
@@ -531,6 +570,11 @@ export async function createNetworkAction(formData: FormData) {
             apiToken: parsed.apiToken,
           })
         : null,
+      fbPageId: parsed.fbPageId || null,
+      encryptedFbToken: parsed.fbPageToken
+        ? encryptJson({ token: parsed.fbPageToken })
+        : null,
+      fbAutoPost: parsed.fbAutoPost,
       blogConfig: {
         create: {
           blogId: parsed.blogId || null,
@@ -575,6 +619,9 @@ export async function updateNetworkAction(formData: FormData) {
     ghlCompanyId: optionalString(formData.get("ghlCompanyId")),
     apiToken: optionalString(formData.get("apiToken")),
     blogId: optionalString(formData.get("blogId")),
+    fbPageId: optionalString(formData.get("fbPageId")),
+    fbPageToken: optionalString(formData.get("fbPageToken")),
+    fbAutoPost: checkboxValue(formData, "fbAutoPost"),
     defaultTopic: formData.get("defaultTopic"),
     categories: optionalString(formData.get("categories")),
     postingDays: formData.getAll("postingDays"),
@@ -633,6 +680,11 @@ export async function updateNetworkAction(formData: FormData) {
             }),
           }
         : {}),
+      fbPageId: parsed.fbPageId || null,
+      ...(parsed.fbPageToken
+        ? { encryptedFbToken: encryptJson({ token: parsed.fbPageToken }) }
+        : {}),
+      fbAutoPost: parsed.fbAutoPost,
       blogConfig: {
         upsert: {
           create: {
@@ -1167,6 +1219,97 @@ export async function repushPostAction(formData: FormData) {
       } as Prisma.InputJsonValue,
     },
   });
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+export async function saveFacebookSettingsAction(formData: FormData) {
+  const user = await requireUser();
+  const networkId = formData.get("networkId") as string;
+  const fbPageId = optionalString(formData.get("fbPageId"));
+  const fbPageToken = optionalString(formData.get("fbPageToken"));
+  const fbAutoPost = checkboxValue(formData, "fbAutoPost");
+
+  const network = await getOwnedNetwork(networkId, user.id);
+  if (!network) dashboardError("Network not found.");
+
+  await prisma.network.update({
+    where: { id: network.id },
+    data: {
+      fbPageId: fbPageId || null,
+      ...(fbPageToken
+        ? { encryptedFbToken: encryptJson({ token: fbPageToken }) }
+        : {}),
+      fbAutoPost,
+    },
+  });
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+export async function postToFacebookAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = publishSchema.parse({ postId: formData.get("postId") });
+
+  const post = await prisma.blogPost.findFirst({
+    where: {
+      id: parsed.postId,
+      status: "published",
+      network: { ownerId: user.id },
+    },
+    include: { network: true },
+  });
+
+  if (!post) {
+    dashboardError("Published post not found.");
+  }
+
+  if (!post.network.fbPageId || !post.network.encryptedFbToken) {
+    dashboardError(
+      "Facebook page ID and access token are required. Add them in the site profile settings.",
+    );
+  }
+
+  const { token } = decryptJson<{ token: string }>(
+    post.network.encryptedFbToken,
+  );
+
+  const blogUrl = post.network.domain
+    ? `https://${post.network.domain}/blog/${post.slug}`
+    : null;
+
+  if (!blogUrl) {
+    dashboardError(
+      "Site domain is not set on this profile. Add the domain so Facebook can link to the post.",
+    );
+  }
+
+  try {
+    const result = await postToFacebookPage({
+      pageId: post.network.fbPageId,
+      pageAccessToken: token,
+      message: buildFacebookMessage({
+        title: post.title,
+        excerpt: post.excerpt,
+        url: blogUrl,
+      }),
+      link: blogUrl,
+    });
+
+    await prisma.blogPost.update({
+      where: { id: post.id },
+      data: {
+        fbPostId: result.id,
+        fbPostedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    dashboardError(
+      error instanceof Error ? error.message : "Facebook post failed.",
+    );
+  }
 
   revalidatePath("/dashboard");
   redirect("/dashboard");

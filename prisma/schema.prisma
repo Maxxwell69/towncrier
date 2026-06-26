@@ -68,6 +68,9 @@ model Network {
   ghlCompanyId               String?
   credentialType             String          @default("manual")
   encryptedCredentialPayload String?
+  fbPageId                   String?
+  encryptedFbToken           String?
+  fbAutoPost                 Boolean         @default(false)
   status                     NetworkStatus   @default(active)
   createdAt                  DateTime        @default(now())
   updatedAt                  DateTime        @updatedAt
@@ -144,6 +147,8 @@ model BlogPost {
   scheduledFor     DateTime?
   status           BlogPostStatus @default(draft)
   ghlPostId        String?
+  fbPostId         String?
+  fbPostedAt       DateTime?
   externalPostId   String?
   publishedTo      String?
   publishResponse  Json?

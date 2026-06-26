@@ -9,8 +9,10 @@ import {
   findPexelsImagesAction,
   generateNextTopicPostAction,
   generatePostAction,
+  postToFacebookAction,
   publishPostAction,
   repushPostAction,
+  saveFacebookSettingsAction,
   toggleTopicAction,
   updateDraftAction,
   updateNetworkAction,
@@ -619,6 +621,76 @@ export default async function DashboardPage({
                     </form>
                   </details>
 
+                  <details className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                    <summary className="cursor-pointer font-semibold text-blue-900">
+                      Facebook page settings
+                    </summary>
+                    <div className="mt-4 space-y-3 text-sm text-blue-800">
+                      <p>
+                        Paste your Facebook{" "}
+                        <strong>Page Access Token</strong> from{" "}
+                        <a
+                          href="https://developers.facebook.com/tools/explorer/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline"
+                        >
+                          Meta Graph API Explorer
+                        </a>
+                        . Select your page, choose{" "}
+                        <code>pages_manage_posts</code> permission, and
+                        generate the token.
+                      </p>
+                    </div>
+                    <form
+                      action={saveFacebookSettingsAction}
+                      className="mt-4 grid gap-4"
+                    >
+                      <input
+                        type="hidden"
+                        name="networkId"
+                        value={network.id}
+                      />
+                      <TextInput
+                        label="Facebook Page ID"
+                        name="fbPageId"
+                        defaultValue={network.fbPageId ?? ""}
+                        placeholder="e.g. 123456789012345"
+                      />
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">
+                          Page Access Token
+                        </span>
+                        <input
+                          type="password"
+                          name="fbPageToken"
+                          placeholder="Paste new token to update (leave blank to keep existing)"
+                          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+                        />
+                        {network.encryptedFbToken ? (
+                          <p className="mt-1 text-xs text-green-700">
+                            Token saved. Paste a new one to replace it.
+                          </p>
+                        ) : (
+                          <p className="mt-1 text-xs text-slate-500">
+                            No token saved yet.
+                          </p>
+                        )}
+                      </label>
+                      <CheckboxInput
+                        label="Auto-post to Facebook when a blog publishes"
+                        name="fbAutoPost"
+                        defaultChecked={network.fbAutoPost ?? false}
+                      />
+                      <SubmitButton
+                        className="w-fit rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
+                        pendingText="Saving..."
+                      >
+                        Save Facebook settings
+                      </SubmitButton>
+                    </form>
+                  </details>
+
                   <details className="mt-6 rounded-2xl bg-slate-950 p-4 text-white">
                     <summary className="cursor-pointer font-semibold">
                       Site API setup
@@ -890,6 +962,9 @@ TOWNCRIER_REVALIDATE_SECRET=${network.revalidateSecret ? "<configured>" : "<opti
                             {post.scheduledFor
                               ? ` / scheduled ${post.scheduledFor.toLocaleDateString()}`
                               : ""}
+                            {post.fbPostId
+                              ? " / ✓ on Facebook"
+                              : ""}
                           </p>
                           <h3 className="mt-2 text-xl font-semibold">
                             {post.title}
@@ -1153,6 +1228,26 @@ TOWNCRIER_REVALIDATE_SECRET=${network.revalidateSecret ? "<configured>" : "<opti
                                   pendingText="Pushing to site..."
                                 >
                                   Re-push to site
+                                </SubmitButton>
+                              </form>
+                            ) : null}
+
+                            {post.status === "published" &&
+                            network.fbPageId &&
+                            network.encryptedFbToken ? (
+                              <form action={postToFacebookAction}>
+                                <input
+                                  type="hidden"
+                                  name="postId"
+                                  value={post.id}
+                                />
+                                <SubmitButton
+                                  className="rounded-xl border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-800 transition hover:bg-blue-50"
+                                  pendingText="Posting to Facebook..."
+                                >
+                                  {post.fbPostId
+                                    ? "Re-post to Facebook"
+                                    : "Post to Facebook"}
                                 </SubmitButton>
                               </form>
                             ) : null}
