@@ -1,6 +1,7 @@
 import { logoutAction } from "@/app/actions/auth";
 import {
   applyImageCandidateAction,
+  connectFacebookPageAction,
   createNetworkAction,
   createManualPostAction,
   createTopicAction,
@@ -57,6 +58,8 @@ const timezones = [
 type DashboardPageProps = {
   searchParams: Promise<{
     error?: string;
+    fb_error?: string;
+    fb_connected?: string;
   }>;
 };
 
@@ -64,7 +67,7 @@ export default async function DashboardPage({
   searchParams,
 }: DashboardPageProps) {
   const user = await requireUser();
-  const { error } = await searchParams;
+  const { error, fb_error, fb_connected } = await searchParams;
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL ??
     "https://towncrier-production.up.railway.app";
@@ -120,6 +123,23 @@ export default async function DashboardPage({
           <div className="mt-6 rounded-3xl border border-red-200 bg-red-50 p-5 text-red-800 shadow-sm">
             <p className="font-semibold">Generation failed</p>
             <p className="mt-1 text-sm">{error}</p>
+          </div>
+        ) : null}
+
+        {fb_error ? (
+          <div className="mt-6 rounded-3xl border border-red-200 bg-red-50 p-5 text-red-800 shadow-sm">
+            <p className="font-semibold">Facebook connection failed</p>
+            <p className="mt-1 text-sm">{fb_error}</p>
+          </div>
+        ) : null}
+
+        {fb_connected ? (
+          <div className="mt-6 rounded-3xl border border-green-200 bg-green-50 p-5 text-green-800 shadow-sm">
+            <p className="font-semibold">Facebook page connected!</p>
+            <p className="mt-1 text-sm">
+              Your Facebook page is now linked. Toggle Auto-post in the Facebook
+              settings to share blogs automatically.
+            </p>
           </div>
         ) : null}
 
@@ -625,70 +645,56 @@ export default async function DashboardPage({
                     <summary className="cursor-pointer font-semibold text-blue-900">
                       Facebook page settings
                     </summary>
-                    <div className="mt-4 space-y-3 text-sm text-blue-800">
-                      <p>
-                        Paste your Facebook{" "}
-                        <strong>Page Access Token</strong> from{" "}
-                        <a
-                          href="https://developers.facebook.com/tools/explorer/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline"
-                        >
-                          Meta Graph API Explorer
-                        </a>
-                        . Select your page, choose{" "}
-                        <code>pages_manage_posts</code> permission, and
-                        generate the token.
-                      </p>
-                    </div>
-                    <form
-                      action={saveFacebookSettingsAction}
-                      className="mt-4 grid gap-4"
-                    >
-                      <input
-                        type="hidden"
-                        name="networkId"
-                        value={network.id}
-                      />
-                      <TextInput
-                        label="Facebook Page ID"
-                        name="fbPageId"
-                        defaultValue={network.fbPageId ?? ""}
-                        placeholder="e.g. 123456789012345"
-                      />
-                      <label className="block">
-                        <span className="text-sm font-medium text-slate-700">
-                          Page Access Token
-                        </span>
-                        <input
-                          type="password"
-                          name="fbPageToken"
-                          placeholder="Paste new token to update (leave blank to keep existing)"
-                          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-cyan-300 transition focus:ring-2"
+
+                    <div className="mt-4 space-y-4">
+                      {network.fbPageId && network.encryptedFbToken ? (
+                        <div className="flex items-center gap-3 rounded-2xl border border-green-200 bg-green-50 p-4">
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-green-800">
+                              ✓ Connected
+                            </p>
+                            <p className="text-xs text-green-700">
+                              Page ID: {network.fbPageId}
+                            </p>
+                          </div>
+                          <a
+                            href={`/api/auth/facebook?networkId=${network.id}`}
+                            className="rounded-xl border border-green-300 px-3 py-1.5 text-xs font-semibold text-green-800 transition hover:bg-green-100"
+                          >
+                            Reconnect
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl border border-blue-200 bg-white p-4">
+                          <p className="text-sm text-slate-600">
+                            Connect your Facebook page to post blogs automatically.
+                            You&apos;ll be asked to log in to Facebook and choose
+                            which page to link.
+                          </p>
+                          <a
+                            href={`/api/auth/facebook?networkId=${network.id}`}
+                            className="mt-3 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
+                          >
+                            Connect Facebook Page
+                          </a>
+                        </div>
+                      )}
+
+                      <form action={saveFacebookSettingsAction} className="space-y-3">
+                        <input type="hidden" name="networkId" value={network.id} />
+                        <CheckboxInput
+                          label="Auto-post to Facebook when a blog publishes"
+                          name="fbAutoPost"
+                          defaultChecked={network.fbAutoPost ?? false}
                         />
-                        {network.encryptedFbToken ? (
-                          <p className="mt-1 text-xs text-green-700">
-                            Token saved. Paste a new one to replace it.
-                          </p>
-                        ) : (
-                          <p className="mt-1 text-xs text-slate-500">
-                            No token saved yet.
-                          </p>
-                        )}
-                      </label>
-                      <CheckboxInput
-                        label="Auto-post to Facebook when a blog publishes"
-                        name="fbAutoPost"
-                        defaultChecked={network.fbAutoPost ?? false}
-                      />
-                      <SubmitButton
-                        className="w-fit rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
-                        pendingText="Saving..."
-                      >
-                        Save Facebook settings
-                      </SubmitButton>
-                    </form>
+                        <SubmitButton
+                          className="w-fit rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
+                          pendingText="Saving..."
+                        >
+                          Save Facebook settings
+                        </SubmitButton>
+                      </form>
+                    </div>
                   </details>
 
                   <details className="mt-6 rounded-2xl bg-slate-950 p-4 text-white">

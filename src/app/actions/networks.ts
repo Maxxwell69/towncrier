@@ -1224,6 +1224,54 @@ export async function repushPostAction(formData: FormData) {
   redirect("/dashboard");
 }
 
+export async function connectFacebookPageAction(formData: FormData) {
+  const user = await requireUser();
+  const networkId = formData.get("networkId") as string;
+  const pageId = formData.get("pageId") as string;
+
+  if (!networkId || !pageId) {
+    dashboardError("Network ID and page ID are required.");
+  }
+
+  const network = await getOwnedNetwork(networkId, user.id);
+  if (!network) dashboardError("Network not found.");
+
+  // Read the pages cookie set by the OAuth callback.
+  const { cookies } = await import("next/headers");
+  const cookieStore = await cookies();
+  const raw = cookieStore.get("fb_pending_pages")?.value;
+
+  if (!raw) {
+    dashboardError("Session expired. Please connect Facebook again.");
+  }
+
+  let pages: { id: string; name: string; access_token: string }[] = [];
+  try {
+    const decoded = JSON.parse(Buffer.from(raw, "base64").toString("utf-8"));
+    pages = decoded.pages ?? [];
+  } catch {
+    dashboardError("Failed to read Facebook page data. Please try again.");
+  }
+
+  const selected = pages.find((p) => p.id === pageId);
+  if (!selected) {
+    dashboardError("Selected page not found. Please try connecting again.");
+  }
+
+  cookieStore.delete("fb_pending_pages");
+
+  await prisma.network.update({
+    where: { id: network.id },
+    data: {
+      fbPageId: selected.id,
+      encryptedFbToken: encryptJson({ token: selected.access_token }),
+    },
+  });
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard?fb_connected=1");
+}
+
 export async function saveFacebookSettingsAction(formData: FormData) {
   const user = await requireUser();
   const networkId = formData.get("networkId") as string;
