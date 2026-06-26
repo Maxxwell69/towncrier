@@ -1276,22 +1276,16 @@ export async function connectFacebookPageAction(formData: FormData) {
 export async function saveFacebookSettingsAction(formData: FormData) {
   const user = await requireUser();
   const networkId = formData.get("networkId") as string;
-  const fbPageId = optionalString(formData.get("fbPageId"));
-  const fbPageToken = optionalString(formData.get("fbPageToken"));
   const fbAutoPost = checkboxValue(formData, "fbAutoPost");
 
   const network = await getOwnedNetwork(networkId, user.id);
   if (!network) dashboardError("Network not found.");
 
+  // Only update the auto-post toggle — page ID and token are managed
+  // exclusively through the OAuth connect flow.
   await prisma.network.update({
     where: { id: network.id },
-    data: {
-      fbPageId: fbPageId || null,
-      ...(fbPageToken
-        ? { encryptedFbToken: encryptJson({ token: fbPageToken }) }
-        : {}),
-      fbAutoPost,
-    },
+    data: { fbAutoPost },
   });
 
   revalidatePath("/dashboard");
