@@ -51,7 +51,7 @@ export async function GET(request: Request) {
   });
 
   const redirectUri = `${appUrl}/api/auth/facebook/callback`;
-  const scope = "pages_manage_posts,pages_read_engagement";
+  const scope = "pages_manage_posts,pages_show_list";
 
   const authUrl = new URL(
     `https://www.facebook.com/${FB_GRAPH_VERSION}/dialog/oauth`,
