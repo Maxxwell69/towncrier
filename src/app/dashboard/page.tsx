@@ -653,8 +653,11 @@ export default async function DashboardPage({
                             <p className="text-sm font-semibold text-green-800">
                               ✓ Connected
                             </p>
-                            <p className="text-xs text-green-700">
-                              Page ID: {network.fbPageId}
+                            <p className="font-medium text-green-900">
+                              {network.fbPageName ?? network.fbPageId}
+                            </p>
+                            <p className="text-xs text-green-600">
+                              ID: {network.fbPageId}
                             </p>
                           </div>
                           <a

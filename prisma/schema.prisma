@@ -69,6 +69,7 @@ model Network {
   credentialType             String          @default("manual")
   encryptedCredentialPayload String?
   fbPageId                   String?
+  fbPageName                 String?
   encryptedFbToken           String?
   fbAutoPost                 Boolean         @default(false)
   status                     NetworkStatus   @default(active)

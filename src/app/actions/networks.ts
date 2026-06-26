@@ -2,6 +2,7 @@
 
 import type { BlogConfig, BlogPost, Network, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -1237,12 +1238,11 @@ export async function connectFacebookPageAction(formData: FormData) {
   if (!network) dashboardError("Network not found.");
 
   // Read the pages cookie set by the OAuth callback.
-  const { cookies } = await import("next/headers");
   const cookieStore = await cookies();
   const raw = cookieStore.get("fb_pending_pages")?.value;
 
   if (!raw) {
-    dashboardError("Session expired. Please connect Facebook again.");
+    dashboardError("Session expired. Please connect Facebook again from the site profile settings.");
   }
 
   let pages: { id: string; name: string; access_token: string }[] = [];
@@ -1264,6 +1264,7 @@ export async function connectFacebookPageAction(formData: FormData) {
     where: { id: network.id },
     data: {
       fbPageId: selected.id,
+      fbPageName: selected.name,
       encryptedFbToken: encryptJson({ token: selected.access_token }),
     },
   });
