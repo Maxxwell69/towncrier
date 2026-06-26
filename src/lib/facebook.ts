@@ -64,6 +64,25 @@ export async function postToFacebookPage(
 }
 
 /**
+ * Normalise a domain or URL string to a bare hostname (no protocol, no trailing slash).
+ * Handles inputs like "fairlesshillschiropractor.com",
+ * "https://fairlesshillschiropractor.com", or "https://fairlesshillschiropractor.com/".
+ */
+export function normaliseDomain(domain: string): string {
+  return domain
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "");
+}
+
+/**
+ * Build a canonical blog post URL from a domain and slug.
+ */
+export function buildBlogUrl(domain: string, slug: string): string {
+  return `https://${normaliseDomain(domain)}/blog/${slug}`;
+}
+
+/**
  * Build the Facebook post message from a blog post.
  * Format: Title \n\n Excerpt \n\n Read the full post → URL
  */

@@ -16,7 +16,7 @@ import {
 } from "@/lib/content";
 import { encryptJson, decryptJson } from "@/lib/crypto";
 import { prisma } from "@/lib/db";
-import { buildFacebookMessage, postToFacebookPage } from "@/lib/facebook";
+import { buildBlogUrl, buildFacebookMessage, postToFacebookPage } from "@/lib/facebook";
 import { publishBlogPost } from "@/lib/ghl";
 import { searchPexelsImages } from "@/lib/pexels";
 
@@ -315,7 +315,7 @@ async function publishPostRecord(post: PublishablePost) {
           post.network.encryptedFbToken,
         );
         const blogUrl = post.network.domain
-          ? `https://${post.network.domain}/blog/${post.slug}`
+          ? buildBlogUrl(post.network.domain, post.slug)
           : null;
 
         if (blogUrl) {
@@ -1320,7 +1320,7 @@ export async function postToFacebookAction(formData: FormData) {
   );
 
   const blogUrl = post.network.domain
-    ? `https://${post.network.domain}/blog/${post.slug}`
+    ? buildBlogUrl(post.network.domain, post.slug)
     : null;
 
   if (!blogUrl) {
