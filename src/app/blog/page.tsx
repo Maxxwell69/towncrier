@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { prisma } from "@/lib/db";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 type Props = {
   searchParams: Promise<{

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { buildRssFeed, rssResponse } from "@/lib/rss";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ siteSlug: string }> };
 

@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/db";
 import { buildRssFeed, rssResponse } from "@/lib/rss";
 
-export const revalidate = 300;
+// Must be dynamic — DB is not reachable during Railway's build phase.
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   const appUrl =
