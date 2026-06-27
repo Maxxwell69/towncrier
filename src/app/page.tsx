@@ -12,6 +12,9 @@ export default async function Home() {
           Twncrier
         </Link>
         <div className="flex items-center gap-4 text-sm font-semibold">
+          <Link href="/blog" className="text-slate-300 hover:text-white">
+            Content Hub
+          </Link>
           <Link href="/pricing" className="text-slate-300 hover:text-white">
             Pricing
           </Link>
